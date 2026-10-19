@@ -82,13 +82,23 @@ Use **Lighting** to control ambient strength and two colored, directional lights
 - All edits are undoable and change the on-screen render immediately, including PNG and browser WebM.
 - The JSON format retains existing curves and keyframes; absent `material` and `lighting` fields load with safe defaults. Imports sanitize values, colors and light directions.
 
+## Shot Camera & Render Studio (v0.6)
+
+The **Camera/Render** tab saves a dedicated shot camera independent of the editor's orbit camera. Click **Use Editor View** to copy the current camera into the shot and switch to the clean shot preview, or edit the shot's yaw, pitch, distance and look-at XYZ coordinates. **Shot View** is locked against accidental orbit and previews the exact render aspect ratio, with letterboxing when necessary.
+
+- Choose render dimensions: 640×360, 960×540, 1280×720, 1920×1080, 1080×1080, or 1080×1350. Pick an opaque hex background.
+- **Render PNG** creates a clean image of the current frame from the saved shot camera at the selected resolution, *without viewport gizmos, axes, or grid*. Camera framing and render preferences are stored in scene JSON. Legacy projects load safe defaults.
+- **Export PNG Sequence ZIP** produces one PNG for each selected frame using the existing animation curves and per-object materials. Configure From, To, and Step. The ZIP is original, standards-compliant uncompressed ZIP32 using CRC32, with no extra runtime dependencies.
+- Frame export is intentionally bounded: max 120 frames or fewer at higher output resolutions, with a ~140 MB PNG safety threshold, UI progress and a cancel button. Every export happens locally and synchronously with the active browser session (it does *not* run in the background).
+- The existing WebM feature still records the interactive canvas in real time. For a clean camera-view recording, switch to Shot View first. PNG sequence export is independent of playback timing and does not create an MP4.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators
-- Better viewport picking, GPU/WebGL2 rendering and material lighting
+- Better viewport picking, GPU/WebGL2 rendering, physically based shading and cast shadows
 - Animation track grouping, graph zoom/pan, keyframe retiming and overshoot tangents
 - Model import/export via independently written serializers
-- Bone/rig animation, camera shots, offline frame-accurate export
+- Bone/rig animation, camera animation, offline movie/video encoding
 - Optional desktop packaging
 
 ## Licensing

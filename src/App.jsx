@@ -2,6 +2,9 @@ import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject,setChannelCurve,setChannelKeyValue} from './scene.js';
 import GraphEditor from './GraphEditor.jsx';
 import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
+import RenderStudio from './RenderStudio.jsx';
+import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,frameRange} from './shot.js';
+import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
@@ -34,6 +37,10 @@ export default function App(){
   const [timelineMode,setTimelineMode]=useState('dope');
   const [graphChannel,setGraphChannel]=useState('position.0');
   const [inspectorTab,setInspectorTab]=useState('object');
+  const [previewShot,setPreviewShot]=useState(false);
+  const [exporting,setExporting]=useState(false);
+  const [exportProgress,setExportProgress]=useState('');
+  const cancelExport=useRef(false);
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
   const canvasRef=useRef(null),picker=useRef([]),handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
@@ -50,15 +57,20 @@ export default function App(){
     obs.observe(cv);return ()=>obs.disconnect();
   },[]);
   useEffect(()=>{
-    const view=render(canvasRef.current,scene,frame,camera,selectedId,tool);
+    const settings=sanitizeRender(scene.renderSettings);
+    const view=render(canvasRef.current,scene,frame,
+      previewShot?sanitizeShotCamera(scene.shotCamera):camera,
+      previewShot?null:selectedId,previewShot?'orbit':tool,
+      previewShot?{helpers:false,aspect:settings.width/settings.height}:{});
     picker.current=view.pick;
     handles.current=view.handles;
-  },[scene,frame,camera,selectedId,tool,sizeVersion]);
+  },[scene,frame,camera,selectedId,tool,previewShot,sizeVersion]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
-    const handle=e=>{e.preventDefault();setCamera(c=>({...c,distance:clamp(c.distance*Math.exp(e.deltaY*.001),2,70)}));};
+    const handle=e=>{e.preventDefault();if(previewShot)return;
+      setCamera(c=>({...c,distance:clamp(c.distance*Math.exp(e.deltaY*.001),2,70)}));};
     cv.addEventListener('wheel',handle,{passive:false});return ()=>cv.removeEventListener('wheel',handle);
-  },[]);
+  },[previewShot]);
   useEffect(()=>{
     if(!playing)return;
     let raf,last=0,progress=frame;
@@ -111,6 +123,19 @@ export default function App(){
     });
     setStatus(patch.__reset?'Lighting reset':'Updated scene lighting');
   }
+  function updateShotCamera(next){
+    setScene(s=>({...s,shotCamera:sanitizeShotCamera(next)}));
+    setStatus('Shot camera updated');
+  }
+  function updateRenderSettings(next){
+    setScene(s=>({...s,renderSettings:sanitizeRender(next)}));
+    setStatus('Render settings updated');
+  }
+  function captureShot(){
+    updateShotCamera(camera);
+    setPreviewShot(true);
+    setStatus('Saved shot from editor view');
+  }
   function editVector(group,i,value){
     const num=Number(value);if(!Number.isFinite(num))return;
     withObject(o=>{const p=atFrame(o,frame);p[group][i]=clamp(num,-10000,10000);return putKey(o,frame,p);});
@@ -158,7 +183,9 @@ export default function App(){
   function newProject(){
     if(recording)stopRecording();
     setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
-      lighting:sanitizeLighting(DEFAULT_LIGHTING),objects:[]});
+      lighting:sanitizeLighting(DEFAULT_LIGHTING),shotCamera:sanitizeShotCamera(DEFAULT_SHOT_CAMERA),
+      renderSettings:sanitizeRender(DEFAULT_RENDER),objects:[]});
+    setPreviewShot(false);
     setSelectedId(null);setFrame(0);setStatus('New empty project');
   }
   function save(){
@@ -171,14 +198,61 @@ export default function App(){
       if(file.size>3000000)throw Error('File exceeds 3 MB');
       const imported=validateProject(JSON.parse(await file.text()));
       setPlaying(false);setScene(imported);setSelectedId(imported.objects[0]?.id||null);
+      setPreviewShot(false);
       setFrame(0);setStatus('Opened '+imported.name);
     }catch(err){setStatus('Import failed: '+err.message);}
   }
-  function snapshot(){
-    const canvas=canvasRef.current;if(!canvas)return;
-    render(canvas,scene,frame,camera,selectedId);
-    canvas.toBlob(b=>{if(b)saveBlob(b,filename(scene.name)+'-f'+frame+'.png');},'image/png');
-    setStatus('Snapshot PNG exported');
+  function renderShotFrame(project,f){
+    const settings=sanitizeRender(project.renderSettings);
+    const canvas=document.createElement('canvas');
+    canvas.width=settings.width;canvas.height=settings.height;
+    render(canvas,project,f,sanitizeShotCamera(project.shotCamera),null,'orbit',{
+      width:settings.width,height:settings.height,pixelRatio:1,helpers:false
+    });
+    return canvas;
+  }
+  const pngBlob=canvas=>new Promise((resolve,reject)=>{
+    canvas.toBlob(b=>b?resolve(b):reject(Error('Browser could not encode PNG.')),'image/png');
+  });
+  async function snapshot(){
+    if(exporting)return;
+    try{
+      const canvas=renderShotFrame(scene,frame);
+      const blob=await pngBlob(canvas);
+      saveBlob(blob,filename(scene.name)+'-shot-f'+String(frame).padStart(4,'0')+'.png');
+      setStatus('Clean '+canvas.width+'×'+canvas.height+' shot PNG rendered');
+    }catch(error){setStatus('Render failed: '+error.message);}
+  }
+  async function exportSequence(start,end,step){
+    if(exporting||recording)return;
+    const project=scene; // freeze this render's scene before the first frame
+    const settings=sanitizeRender(project.renderSettings);
+    const maxFrames=Math.min(120,Math.max(1,Math.floor(80_000_000/(settings.width*settings.height))));
+    let frames;
+    try{frames=frameRange(start,end,step,project.duration,maxFrames);}
+    catch(error){setStatus('Export unavailable: '+error.message);return;}
+    cancelExport.current=false;
+    setExporting(true);setPlaying(false);
+    const entries=[];let total=0;
+    try{
+      for(let i=0;i<frames.length;i++){
+        if(cancelExport.current)throw Error('Cancelled by user.');
+        const canvas=renderShotFrame(project,frames[i]);
+        const blob=await pngBlob(canvas);
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        total+=bytes.length;
+        if(total>140_000_000)throw Error('ZIP would exceed safe browser memory limit.');
+        entries.push({name:'frame_'+String(frames[i]).padStart(4,'0')+'.png',data:bytes});
+        setExportProgress((i+1)+' / '+frames.length+' frames');
+        // Yield between frames for responsive browser controls and cancel button.
+        await new Promise(resolve=>requestAnimationFrame(resolve));
+      }
+      if(cancelExport.current)throw Error('Cancelled by user.');
+      const zip=makeZip(entries);
+      saveBlob(zip,filename(project.name)+'-frames-'+frames[0]+'-'+frames.at(-1)+'.zip');
+      setStatus('Exported '+frames.length+' clean PNG frames ('+(zip.size/1048576).toFixed(1)+' MiB ZIP)');
+    }catch(error){setStatus('Export stopped: '+error.message);}
+    finally{setExporting(false);setExportProgress('');cancelExport.current=false;}
   }
   function stopRecording(){
     setPlaying(false);
@@ -208,7 +282,7 @@ export default function App(){
     if(recording && !playing && frame===scene.duration)stopRecording();
   },[frame,playing,recording,scene.duration]);
   function pointerDown(e){
-    if(e.button>2)return;
+    if(previewShot||e.button>2)return;
     const rect=e.currentTarget.getBoundingClientRect();
     const handle=tool!=='orbit' && e.button===0 && !e.shiftKey && selected && selected.visible
       ?(tool==='rotate'?hitRotateHandle:hitMoveHandle)(handles.current,
@@ -225,6 +299,7 @@ export default function App(){
     }
   }
   function pointerMove(e){
+    if(previewShot)return;
     const d=drag.current;if(!d)return;
     if(d.kind==='axis'){
       const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
@@ -263,6 +338,7 @@ export default function App(){
     });
   }
   function pointerUp(e){
+    if(previewShot)return;
     const d=drag.current;if(!d)return;
     if(d.kind==='axis'){
       if(d.changed)setStatus(d.mode+' '+d.handle.name+' · one undo step · F'+d.at);
@@ -291,7 +367,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.5</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.6</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -301,7 +377,7 @@ export default function App(){
         <button className="ghost" onClick={newProject}>New</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
-        <button className="ghost" onClick={snapshot}>Snapshot PNG</button>
+        <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
         <button className="primary" onClick={record}>{recording?'■ Stop recording':'● Record WebM'}</button>
         <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={openFile}/>
       </div>
@@ -340,9 +416,12 @@ export default function App(){
         </div>
       </aside>
       <section className="viewport-panel" aria-label="3D viewport">
-        <div className="view-top"><div><span className="view-tag">PERSPECTIVE</span>
+        <div className="view-top"><div><span className="view-tag">{previewShot?'SHOT CAMERA':'PERSPECTIVE'}</span>
           <span>World / Frame {String(frame).padStart(3,'0')}</span></div>
           <div className="viewport-actions" role="toolbar" aria-label="Viewport tools">
+            <button className={'tool-button '+(previewShot?'chosen':'')}
+              aria-pressed={previewShot} onClick={()=>setPreviewShot(p=>!p)}
+              title="Toggle clean saved-camera preview">◧ Shot View</button>
             <button className={'tool-button '+(tool==='move'?'chosen':'')} aria-pressed={tool==='move'}
               onClick={()=>setTool('move')} title="Move · G · Alt snaps 0.25 units">✥ Move</button>
             <button className={'tool-button '+(tool==='rotate'?'chosen':'')} aria-pressed={tool==='rotate'}
@@ -359,15 +438,24 @@ export default function App(){
           onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>
         <div className="axis-compass" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
         <div className="view-bottom"><span>Original software 3D renderer · no external assets</span>
-          <span>{tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
+          <span>{previewShot?'Clean shot preview · camera locked':tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
         <div className="section-heading">STUDIO INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
         <div className="inspector-tabs" role="group" aria-label="Inspector sections">
           <button aria-pressed={inspectorTab==='object'} onClick={()=>setInspectorTab('object')}>Object</button>
           <button aria-pressed={inspectorTab==='lighting'} onClick={()=>setInspectorTab('lighting')}>Lighting</button>
+          <button aria-pressed={inspectorTab==='render'} onClick={()=>setInspectorTab('render')}>Camera/Render</button>
         </div>
-        {inspectorTab==='lighting' ?
+        {inspectorTab==='render' ?
+          <RenderStudio shotCamera={scene.shotCamera} renderSettings={scene.renderSettings}
+            editorCamera={camera} onCameraChange={updateShotCamera}
+            onRenderChange={updateRenderSettings} onCaptureView={captureShot}
+            previewShot={previewShot} onPreviewChange={setPreviewShot}
+            frame={frame} duration={scene.duration} onRenderStill={snapshot}
+            onExportSequence={exportSequence} exporting={exporting}
+            progress={exportProgress} onCancel={()=>{cancelExport.current=true;}}/> :
+        inspectorTab==='lighting' ?
           <LightingEditor lighting={scene.lighting} onChange={updateLighting}/> :
         !selected ? <p className="empty">Select a shape in the scene or viewport.</p> :
         <div className="inspector">

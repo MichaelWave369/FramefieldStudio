@@ -1,5 +1,6 @@
 // Original Framefield scene model. SPDX-License-Identifier: MIT
 import {sanitizeMaterial,sanitizeLighting,DEFAULT_LIGHTING,DEFAULT_MATERIAL} from './lighting.js';
+import {sanitizeShotCamera,sanitizeRender} from './shot.js';
 export const TYPES = ['box','sphere','pyramid','cylinder','torus'];
 export const PALETTE = ['#9991ff','#62d6ca','#f6ad73','#e994d4','#73b9eb'];
 export const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
@@ -95,7 +96,8 @@ export function makeObject(type='box',index=0,frame=0) {
     keyframes:[{frame,...pose([index%5-2,0,0])}]};
 }
 export function demoScene() {
-  return {version:1,name:'First Motion',fps:24,duration:120,lighting:sanitizeLighting(DEFAULT_LIGHTING),objects:[
+  return {version:1,name:'First Motion',fps:24,duration:120,lighting:sanitizeLighting(DEFAULT_LIGHTING),
+    shotCamera:sanitizeShotCamera(null),renderSettings:sanitizeRender(null),objects:[
     {id:id(),type:'box',name:'Orbit Cube',color:'#9a90ff',material:{...DEFAULT_MATERIAL},visible:true,
       keyframes:[{frame:0,...pose([-1.2,0,0])},{frame:60,...pose([1.2,0,0],[0,180,0])},
         {frame:120,...pose([-1.2,0,0],[0,360,0])}]},
@@ -136,5 +138,6 @@ export function validateProject(raw) {
   });
   return {version:1,name:String(raw.name||'Imported Scene').slice(0,80),
     fps:[12,24,30,60].includes(Number(raw.fps))?Number(raw.fps):24,duration,
-    lighting:sanitizeLighting(raw.lighting),objects};
+    lighting:sanitizeLighting(raw.lighting),shotCamera:sanitizeShotCamera(raw.shotCamera),
+    renderSettings:sanitizeRender(raw.renderSettings),objects};
 }
