@@ -182,6 +182,7 @@ export default function App(){
     if(handle){
       setPlaying(false);
       drag.current={kind:'axis',mode:tool,handle,sx:e.clientX,sy:e.clientY,
+        rotationOrigin:{x:rect.left+handle.origin.x,y:rect.top+handle.origin.y},
         original:atFrame(selected,frame),objectId:selected.id,at:frame,changed:false};
     }else{
       drag.current={kind:'camera',x:e.clientX,y:e.clientY,
@@ -200,7 +201,7 @@ export default function App(){
         const delta=axisDragWorldDelta(d.handle,dx,dy,e.altKey);
         nextValue=clamp(original+delta,-10000,10000);
       }else if(d.mode==='rotate'){
-        const delta=screenRotationDelta(d.handle.origin,
+        const delta=screenRotationDelta(d.rotationOrigin,
           {x:d.sx,y:d.sy},
           {x:e.clientX,y:e.clientY},e.altKey);
         nextValue=clamp(original+delta,-10000,10000);
