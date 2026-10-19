@@ -24,6 +24,8 @@ npm install
 npm run dev
 npm run test
 npm run build
+npx playwright install chromium
+npx playwright test
 ```
 
 The development server reports its local address, normally http://localhost:5173.

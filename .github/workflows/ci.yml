@@ -21,3 +21,7 @@ jobs:
         run: npm run build
       - name: Verify page assets
         run: test -f dist/index.html
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser runtime smoke test
+        run: npx playwright test
