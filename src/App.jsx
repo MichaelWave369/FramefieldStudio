@@ -6,6 +6,7 @@ import RenderStudio from './RenderStudio.jsx';
 import MeshWorkshop from './MeshWorkshop.jsx';
 import ModifierStack from './ModifierStack.jsx';
 import {RecoveryPrompt,StarterPicker} from './CreatorDialogs.jsx';
+import QuickStartGuide from './QuickStartGuide.jsx';
 import {readRecovery,storeDraft,clearRecovery} from './recovery.js';
 import {createStarter} from './starterScenes.js';
 import {pickSurface} from './picking.js';
@@ -34,6 +35,7 @@ export default function App(){
   const [history,setHistory]=useState(()=>initialHistory(demoScene()));
   const [recovery,setRecovery]=useState(()=>{try{return readRecovery(window.localStorage);}catch{return null;}});
   const [starterOpen,setStarterOpen]=useState(false);
+  const [guideOpen,setGuideOpen]=useState(false);
   const [autosaveEnabled,setAutosaveEnabled]=useState(false);
   const [autosaveState,setAutosaveState]=useState({kind:'idle'});
   const scene=history.present;
@@ -293,6 +295,25 @@ export default function App(){
       setStarterOpen(false);setStatus('Starter scene loaded: '+project.name+' · Undo available');
     }catch(error){setStatus('Starter scene failed: '+error.message);}
   }
+  function downloadStarter(starterId){
+    try{
+      const example=createStarter(starterId);
+      const json=JSON.stringify(example,null,2);
+      const blob=new Blob([json],{type:'application/json'});
+      const safe=starterId.replace(/[^a-z0-9-]/g,'');
+      saveBlob(blob,'framefield-example-'+safe+'.framefield.json');
+      setStatus('Example project downloaded: '+example.name+' · current scene unchanged');
+    }catch(error){setStatus('Example download failed: '+error.message);}
+  }
+  function guideJump(action){
+    setGuideOpen(false);
+    if(action==='starter'){setStarterOpen(true);return;}
+    if(action==='object'){setInspectorTab('object');setPreviewShot(false);setStatus('Object Inspector ready');return;}
+    if(action==='graph'){setTimelineMode('graph');setStatus('Graph Editor ready');return;}
+    if(action==='lighting'){setInspectorTab('lighting');setStatus('Lighting Inspector ready');return;}
+    if(action==='render'){setInspectorTab('render');setStatus('Camera and Render Studio ready');return;}
+    if(action==='save')save();
+  }
   function newProject(){
     if(recording)stopRecording();
     setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
@@ -511,7 +532,10 @@ export default function App(){
     {recovery&&<RecoveryPrompt draft={recovery} onRestore={restoreDraft}
       onDiscard={discardDraft} onBackup={backupDraft}/>}
     {starterOpen&&!recovery&&<StarterPicker onClose={()=>setStarterOpen(false)}
-      onSelect={loadStarter}/>}
+      onSelect={loadStarter} onDownload={downloadStarter}/>}
+    {guideOpen&&!starterOpen&&!recovery&&<QuickStartGuide onClose={()=>setGuideOpen(false)}
+      onJump={guideJump}/>}
+
     <header className="topbar">
       <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React v1.0 candidate</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
@@ -526,6 +550,7 @@ export default function App(){
         <button className="ghost" disabled={!history.future.length} onClick={redo} title="Redo · Ctrl/Cmd+Shift+Z">↷ Redo</button>
         <button className="ghost" onClick={newProject}>New</button>
         <button className="ghost" onClick={()=>setStarterOpen(true)}>Starter Scenes</button>
+        <button className="ghost" onClick={()=>setGuideOpen(true)}>Quick Start</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>

@@ -23,7 +23,7 @@ export function RecoveryPrompt({draft,onRestore,onDiscard,onBackup}){
     </section>
   </div>;
 }
-export function StarterPicker({onClose,onSelect}){
+export function StarterPicker({onClose,onSelect,onDownload}){
   return <div className="creator-overlay">
     <section className="creator-dialog starter-dialog" role="dialog" aria-modal="true" aria-label="Starter scenes">
       <div className="creator-heading">
@@ -36,8 +36,12 @@ export function StarterPicker({onClose,onSelect}){
       <div className="starter-grid">
         {STARTER_SCENES.map(scene=><article className="starter-card" key={scene.id}>
           <strong>{scene.title}</strong><p>{scene.description}</p>
-          <button className="primary" onClick={()=>onSelect(scene.id)}
-            aria-label={'Create '+scene.title}>Create scene</button>
+          <div className="starter-card-actions">
+            <button className="primary" onClick={()=>onSelect(scene.id)}
+              aria-label={'Create '+scene.title}>Create scene</button>
+            <button className="ghost" onClick={()=>onDownload(scene.id)}
+              aria-label={'Download '+scene.title+' JSON'}>Download JSON</button>
+          </div>
         </article>)}
       </div>
     </section>

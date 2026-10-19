@@ -567,3 +567,76 @@ test('surface picking selects a visible object while retaining keyboard orbit an
   await expect(page.getByRole('button',{name:/Move/})).toHaveAttribute('aria-pressed','true');
   expect(errors).toEqual([]);
 });
+
+test('Quick Start tour opens, navigates and jumps into the actual Graph Editor',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Quick Start'}).click();
+  const guide=page.getByRole('dialog',{name:'Quick Start guide'});
+  await expect(guide).toBeVisible();
+  await expect(guide.getByText('Start with something alive')).toBeVisible();
+  await guide.getByRole('button',{name:'Next →'}).click();
+  await expect(guide.getByText('Shape the scene')).toBeVisible();
+  await guide.getByRole('button',{name:'Go to step 3: Make motion feel intentional'}).click();
+  await expect(guide.getByText('Make motion feel intentional')).toBeVisible();
+  await guide.getByRole('button',{name:'Open Graph Editor'}).click();
+  await expect(guide).toHaveCount(0);
+  await expect(page.getByRole('group',{name:'Animation editors'})
+    .getByRole('button',{name:'Graph Editor'})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'Quick Start'}).click();
+  await expect(guide.getByRole('link',{name:/Full User Manual/}))
+    .toHaveAttribute('href',/docs\/USER_MANUAL\.md$/);
+  await page.keyboard.press('Escape');
+  await expect(guide).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('downloading a starter JSON keeps current project and Undo history unchanged',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const project=page.getByRole('textbox',{name:'Project name'});
+  await expect(project).toHaveValue('First Motion');
+  const undo=page.getByRole('button',{name:/Undo/});
+  await expect(undo).toBeDisabled();
+  await page.getByRole('button',{name:'Starter Scenes'}).click();
+  const gallery=page.getByRole('dialog',{name:'Starter scenes'});
+  const downloading=page.waitForEvent('download');
+  await gallery.getByRole('button',{name:'Download Bouncing Ball JSON'}).click();
+  const download=await downloading;
+  expect(download.suggestedFilename()).toBe('framefield-example-bounce.framefield.json');
+  const fs=await import('node:fs/promises');
+  const json=JSON.parse(await fs.readFile(await download.path(),'utf8'));
+  expect(json.name).toBe('Bouncing Ball');
+  expect(json.objects[0].keyframes).toHaveLength(9);
+  await expect(gallery).toBeVisible();
+  await gallery.getByRole('button',{name:'Close starter scenes'}).click();
+  await expect(project).toHaveValue('First Motion');
+  await expect(undo).toBeDisabled();
+  expect(errors).toEqual([]);
+});
+
+test('downloaded example JSON can be opened and rendered in a new project',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Starter Scenes'}).click();
+  const gallery=page.getByRole('dialog',{name:'Starter scenes'});
+  const downloading=page.waitForEvent('download');
+  await gallery.getByRole('button',{name:'Download Product Showcase JSON'}).click();
+  const download=await downloading;
+  const fs=await import('node:fs/promises');
+  const json=await fs.readFile(await download.path());
+  await gallery.getByRole('button',{name:'Close starter scenes'}).click();
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name:download.suggestedFilename(),mimeType:'application/json',buffer:json
+  });
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Product Showcase');
+  await page.getByRole('button',{name:'Camera/Render'}).click();
+  const render=page.waitForEvent('download');
+  await page.getByRole('button',{name:/Render Frame 0/}).click();
+  const png=await render;
+  const bytes=await fs.readFile(await png.path());
+  expect(bytes.readUInt32BE(16)).toBe(960);
+  expect(bytes.readUInt32BE(20)).toBe(540);
+  expect(errors).toEqual([]);
+});

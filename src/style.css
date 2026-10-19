@@ -164,3 +164,24 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
   .starter-grid{grid-template-columns:1fr}
   .creator-actions button{flex:1}
 }
+
+/* v1.0 candidate creator release kit: quick-start and example downloads */
+.guide-dialog{width:min(100%,650px)}
+.guide-step-progress{display:flex;gap:9px;margin:18px 0 20px}
+.guide-dot{flex:1;min-width:12px;height:8px;border-radius:30px;
+  background:#354769;border:1px solid #57719b;padding:0}
+.guide-dot.current{background:#97e7d8;border-color:#b8fff0}
+.guide-story{background:#1a2a43;border:1px solid #395474;border-radius:12px;
+  padding:21px;margin-bottom:15px;min-height:185px}
+.guide-story h3{font-size:21px;margin:7px 0 12px;color:#f1f5ff}
+.guide-story p{font-size:13px;line-height:1.7;color:#c6d5ea}
+.guide-hint{font-size:11px;color:#a4e8d5;margin-top:14px;line-height:1.6}
+.guide-controls{display:flex;justify-content:space-between;gap:8px;margin:10px 0}
+.guide-controls button{min-width:110px}
+.guide-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0}
+.guide-bottom a{font-size:12px;color:#a8d7ff;text-decoration:underline;text-underline-offset:2px}
+.guide-bottom .primary{padding:11px 15px}
+.starter-card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:auto}
+.starter-card-actions button{font-size:11px;padding:8px 10px;margin:7px 0 0}
+@media(max-width:620px){.guide-bottom{align-items:start;flex-direction:column}
+  .guide-bottom .primary{width:100%}}
