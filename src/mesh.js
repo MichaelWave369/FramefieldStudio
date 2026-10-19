@@ -80,7 +80,7 @@ export function moveMeshComponent(mesh,kind,index,delta){
   if(!indices.size)return mesh;
   if(!Array.isArray(delta)||delta.length!==3||delta.some(n=>!Number.isFinite(n)))return mesh;
   return {...mesh,vertices:mesh.vertices.map((v,i)=>indices.has(i)
-    ?v.map((n,k)=>Math.max(-10000,Math.min(10000,n+delta[k]))):[...v])};
+    ?v.map((n,k)=>Math.round(Math.max(-10000,Math.min(10000,n+delta[k]))*1e6)/1e6):[...v])};
 }
 export function transformVertex(v,p){
   let [x,y,z]=[v[0]*p.scale[0],v[1]*p.scale[1],v[2]*p.scale[2]];
