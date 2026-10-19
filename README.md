@@ -137,6 +137,35 @@ The first-pass tools work on individual polygon faces. Inset/chamfer tools
 require convex boundaries and do not perform topology-aware multi-face inset,
 subdivision, sculpting, Boolean cuts, or vertex-level deformation keyframes.
 
+## Non-destructive Subdivision & Mirror Modifier Stack (v0.9)
+
+The Object inspector includes a **Modifier Stack** for each selected object, including
+unconverted primitives. Add up to **four** ordered modifiers, toggle any modifier on
+or off, adjust its values, reorder with up/down arrows, or remove it. Each change is
+undoable.
+
+- **Subdivision** is a 1- or 2-level Catmull–Clark surface smoothing pass with
+  shared edge and face points, plus boundary handling. Unlike a simple wireframe
+  splitter, the new quad surface becomes smoother.
+- **Mirror X/Y/Z** clips to the *positive* side of the specified local-axis plane
+  and reflects that half across zero. Shared seam vertices are welded.
+  The mirror plane is currently fixed to the local origin; there is no per-axis
+  offset or independent clipping threshold.
+- **Non-destructive:** source `object.geometry` (or built-in primitive if not yet
+  converted) and all keyframes remain unchanged. The evaluated mesh drives the
+  standard viewport, lighting/materials, camera PNG, PNG frame sequences and WebM.
+  Mesh-editing handles display the **original source cage**, not evaluated vertices.
+- Modifiers save as an optional `object.modifiers` array in local JSON. Legacy
+  projects without a stack continue unchanged. Import validates modifier values
+  and refuses projects whose evaluated topology exceeds the safe preview budget.
+- Budget: up to four stack steps, no more than two subdivision levels per step,
+  and maximum 7,000 evaluated vertices or 6,000 evaluated faces. Expensive or
+  malformed settings are rejected before the scene is committed.
+- **Important constraints:** this is a first-pass polygon modifier system rather
+  than Blender parity. Subdivision is intended for manifold mesh topology; mirror
+  keeps the positive side of its axis, and modifier results cannot yet be baked
+  or applied back onto the editable source cage.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators

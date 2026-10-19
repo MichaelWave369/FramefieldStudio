@@ -4,6 +4,7 @@ import {makeMoveHandles,drawMoveHandles,drawScaleHandles,makeRotateHandles,drawR
 import {makeProject} from './projection.js';
 import {shadeFace,DEFAULT_LIGHTING} from './lighting.js';
 import {primitiveMesh,transformVertex,componentHandles,componentIndices,uniqueEdges} from './mesh.js';
+import {evaluateModifiers} from './modifiers.js';
 const TAU=Math.PI*2;
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const mul=(a,s)=>a.map(v=>v*s);
@@ -50,7 +51,7 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move',options=
   const polys=[],pick=[];
   for(const object of scene.objects) {
     if(!object.visible)continue;
-    const p=atFrame(object,frame),m=object.geometry||primitiveMesh(object.type);
+    const p=atFrame(object,frame),m=evaluateModifiers(object);
     const verts=m.vertices.map(v=>transformVertex(v,p)),center=project(p.position);
     if(center)pick.push({...center,id:object.id});
     for(const face of m.faces){

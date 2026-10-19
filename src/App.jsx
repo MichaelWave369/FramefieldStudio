@@ -4,6 +4,8 @@ import GraphEditor from './GraphEditor.jsx';
 import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
 import RenderStudio from './RenderStudio.jsx';
 import MeshWorkshop from './MeshWorkshop.jsx';
+import ModifierStack from './ModifierStack.jsx';
+import {sanitizeModifiers,evaluateModifiers} from './modifiers.js';
 import {operateFace} from './faceOps.js';
 import {cloneMesh,primitiveMesh,moveMeshComponent,dragToLocal,pickComponent} from './mesh.js';
 import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,frameRange} from './shot.js';
@@ -153,6 +155,16 @@ export default function App(){
     setPreviewShot(true);
     setStatus('Saved shot from editor view');
   }
+  function updateModifiers(next){
+    if(!selected)return;
+    try{
+      const modifiers=sanitizeModifiers(next);
+      // Preflight geometry so a huge subdivision fails in the inspector, not the renderer.
+      evaluateModifiers({...selected,modifiers});
+      withObject(o=>({...o,modifiers}));
+      setStatus('Modifier stack updated · Undo available');
+    }catch(error){setStatus('Modifier not applied: '+error.message);}
+  }
   function convertToMesh(){
     if(!selected||selected.geometry)return;
     withObject(o=>({...o,geometry:cloneMesh(primitiveMesh(o.type))}));
@@ -176,6 +188,7 @@ export default function App(){
       // Validate and calculate before updating React state so an invalid operation
       // cannot throw from inside React's render/update phase.
       const result=operateFace(selected.geometry,meshSelection,operation,Number(amount));
+      evaluateModifiers({...selected,geometry:result});
       const id=selectedId;
       setScene(s=>({...s,objects:s.objects.map(o=>o.id===id?{...o,geometry:result}:o)}));
       setPlaying(false);
@@ -443,7 +456,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.8</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.9</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -550,6 +563,7 @@ export default function App(){
             onConvert={convertToMesh} onModeChange={setEditMode}
             onSelectionChange={setMeshSelection} onMove={moveSelectedMesh}
             onOperate={applyFaceOperation}/>
+          <ModifierStack object={selected} onChange={updateModifiers}/>
           <MaterialEditor material={selected.material} onChange={updateMaterial}/>
           {['position','rotation','scale'].map(group=><div key={group}>
             <div className="transform-title">{group.toUpperCase()} <span>{group==='position'?'METERS':group==='rotation'?'DEGREES':'FACTOR'}</span></div>
