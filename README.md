@@ -166,6 +166,33 @@ undoable.
   keeps the positive side of its axis, and modifier results cannot yet be baked
   or applied back onto the editable source cage.
 
+## v1.0 Creator Workflow candidate (PR #11)
+
+- **Local autosave:** scene edits are debounced and stored in this browser's
+  same-origin localStorage. It saves source geometry, modifiers, materials,
+  lights, camera, and keyframes. The app displays **Saving locally** or
+  **Saved locally** only after storage confirms success. Browser storage
+  can be cleared by the user, can run out of space, and is not a permanent
+  substitute for **Save JSON**.
+- **Explicit recovery:** if a local draft exists on launch, a dialog offers
+  **Restore**, **Download draft backup**, or **Discard**. Nothing is silently
+  loaded, replaced, or discarded. A malformed draft can still be downloaded
+  as raw bytes for inspection before discarding it.
+- **Starter Scenes:** First Motion, Turntable, Bouncing Ball and Product Showcase.
+  Every scene is generated locally from original primitives and scene data.
+  Choosing one is a normal Undoable editor action.
+- **Surface selection:** click visible projected polygons to select the nearest
+  object, rather than relying on a fixed distance to an object's origin.
+  Existing gizmo drags, camera orbit, and mesh vertex/edge/face picking remain
+  separate. Overlapping faces use projected depth to choose the frontmost.
+- **Release hygiene:** new regression checks cover reload/recovery/discard,
+  starter scenes, surface picking, current editor tools and clean renders.
+  See `docs/V1_RELEASE_CHECKLIST.md` for manual acceptance tests and scope
+  boundaries.
+
+**Status:** v1.0 *release candidate*, not an announced stable release. All
+runtime data remains local; nothing syncs across browsers or devices.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators

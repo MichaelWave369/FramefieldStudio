@@ -5,6 +5,10 @@ import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
 import RenderStudio from './RenderStudio.jsx';
 import MeshWorkshop from './MeshWorkshop.jsx';
 import ModifierStack from './ModifierStack.jsx';
+import {RecoveryPrompt,StarterPicker} from './CreatorDialogs.jsx';
+import {readRecovery,storeDraft,clearRecovery} from './recovery.js';
+import {createStarter} from './starterScenes.js';
+import {pickSurface} from './picking.js';
 import {sanitizeModifiers,evaluateModifiers} from './modifiers.js';
 import {operateFace} from './faceOps.js';
 import {cloneMesh,primitiveMesh,moveMeshComponent,dragToLocal,pickComponent} from './mesh.js';
@@ -28,6 +32,10 @@ const filename=name=>(name||'framefield').toLowerCase().replace(/[^a-z0-9_-]+/g,
 
 export default function App(){
   const [history,setHistory]=useState(()=>initialHistory(demoScene()));
+  const [recovery,setRecovery]=useState(()=>{try{return readRecovery(window.localStorage);}catch{return null;}});
+  const [starterOpen,setStarterOpen]=useState(false);
+  const [autosaveEnabled,setAutosaveEnabled]=useState(false);
+  const [autosaveState,setAutosaveState]=useState({kind:'idle'});
   const scene=history.present;
   const setScene=change=>setHistory(h=>commitHistory(h,change));
   const amendScene=change=>setHistory(h=>amendHistory(h,change));
@@ -51,7 +59,8 @@ export default function App(){
   const cancelExport=useRef(false);
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
-  const canvasRef=useRef(null),picker=useRef([]),handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
+  const canvasRef=useRef(null),picker=useRef([]),pickFaces=useRef([]),
+    handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
   const selected=useMemo(()=>scene.objects.find(o=>o.id===selectedId)||null,[scene,selectedId]);
   const selectedPose=selected?atFrame(selected,frame):null;
   const [sizeVersion,setSizeVersion]=useState(0);
@@ -60,6 +69,20 @@ export default function App(){
     setSelectedId(scene.objects[0]?.id||null);
     setMeshMode('object');setMeshSelection(0);
   },[selectedId,scene.objects]);
+  useEffect(()=>{
+    if(!recovery&&history.past.length>0)setAutosaveEnabled(true);
+  },[recovery,history.past.length]);
+  useEffect(()=>{
+    if(recovery||!autosaveEnabled)return;
+    setAutosaveState({kind:'pending'});
+    const timer=window.setTimeout(()=>{
+      try{
+        const result=storeDraft(window.localStorage,scene);
+        setAutosaveState({kind:'saved',at:result.savedAt});
+      }catch(error){setAutosaveState({kind:'error',message:error.message});}
+    },800);
+    return ()=>window.clearTimeout(timer);
+  },[scene,recovery,autosaveEnabled]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
     const obs=new ResizeObserver(()=>setSizeVersion(v=>v+1));
@@ -73,6 +96,7 @@ export default function App(){
       previewShot?{helpers:false,aspect:settings.width/settings.height}:
         {meshMode:meshMode==='object'?null:meshMode,componentSelection:meshSelection});
     picker.current=view.pick;
+    pickFaces.current=view.faces||[];
     handles.current=view.handles;
     meshHits.current=view.components||[];
   },[scene,frame,camera,selectedId,tool,previewShot,meshMode,meshSelection,sizeVersion]);
@@ -242,6 +266,33 @@ export default function App(){
     setStatus('Updated '+channel+' easing · F'+keyFrame);
   }
   function seek(next){setPlaying(false);setFrame(clamp(Math.round(next),0,scene.duration));}
+  function restoreDraft(){
+    if(!recovery?.project)return;
+    const restored=recovery.project;
+    setHistory(initialHistory(restored));setSelectedId(restored.objects[0]?.id||null);
+    setPlaying(false);setFrame(0);setPreviewShot(false);setMeshMode('object');
+    setAutosaveEnabled(false);setAutosaveState({kind:'saved',at:recovery.savedAt});
+    setRecovery(null);setStatus('Restored previous local project · download JSON for a durable backup');
+  }
+  function discardDraft(){
+    try{clearRecovery(window.localStorage);}
+    catch(error){setStatus('Could not discard local draft: '+error.message);return;}
+    setRecovery(null);setAutosaveEnabled(false);setAutosaveState({kind:'idle'});
+    setStatus('Local draft discarded · current studio scene unchanged');
+  }
+  function backupDraft(){
+    if(!recovery?.raw)return;
+    saveBlob(new Blob([recovery.raw],{type:'application/json'}),'framefield-local-draft-backup.json');
+    setStatus('Local draft backup downloaded');
+  }
+  function loadStarter(sceneId){
+    try{
+      const project=createStarter(sceneId);
+      setScene(project);setPlaying(false);setFrame(0);setPreviewShot(false);
+      setSelectedId(project.objects[0]?.id||null);setMeshMode('object');setMeshSelection(0);
+      setStarterOpen(false);setStatus('Starter scene loaded: '+project.name+' · Undo available');
+    }catch(error){setStatus('Starter scene failed: '+error.message);}
+  }
   function newProject(){
     if(recording)stopRecording();
     setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
@@ -433,8 +484,10 @@ export default function App(){
       if(d.changed)setStatus(d.mode+' '+d.handle.name+' · one undo step · F'+d.at);
       drag.current=null;return;
     }
-    if(Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<5){
+    if(Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<5 && meshMode==='object' && e.button===0){
       const r=e.currentTarget.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+      const surface=pickSurface(pickFaces.current,x,y);
+      if(surface){setSelectedId(surface);drag.current=null;return;}
       const hit=picker.current.reduce((best,p)=>{
         const dist=Math.hypot(x-p.x,y-p.y);
         return dist<best.distance?{id:p.id,distance:dist}:best;
@@ -455,15 +508,24 @@ export default function App(){
     seek((e.clientX-r.left)/r.width*scene.duration);
   }
   return <div className="app">
+    {recovery&&<RecoveryPrompt draft={recovery} onRestore={restoreDraft}
+      onDiscard={discardDraft} onBackup={backupDraft}/>}
+    {starterOpen&&!recovery&&<StarterPicker onClose={()=>setStarterOpen(false)}
+      onSelect={loadStarter}/>}
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.9</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React v1.0 candidate</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
-        <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
+        <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span>
+        <span className={'local-save-state '+(autosaveState.kind==='error'?'error':'')}
+          aria-live="polite">{autosaveState.kind==='saved'?'Saved locally':autosaveState.kind==='pending'
+            ?'Saving locally…':autosaveState.kind==='error'?'Autosave unavailable':'Local autosave ready'}</span>
+      </div>
       <div className="top-actions">
         <button className="ghost" disabled={!history.past.length} onClick={undo} title="Undo · Ctrl/Cmd+Z">↶ Undo</button>
         <button className="ghost" disabled={!history.future.length} onClick={redo} title="Redo · Ctrl/Cmd+Shift+Z">↷ Redo</button>
         <button className="ghost" onClick={newProject}>New</button>
+        <button className="ghost" onClick={()=>setStarterOpen(true)}>Starter Scenes</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
@@ -494,7 +556,7 @@ export default function App(){
         </div>
         <div className="hints"><div className="section-heading">VIEW CONTROLS</div>
           <p><kbd>Drag</kbd> Orbit camera</p><p><kbd>Shift</kbd> + <kbd>Drag</kbd> Pan</p>
-          <p><kbd>Scroll</kbd> Zoom</p><p><kbd>Click</kbd> Select object</p>
+          <p><kbd>Scroll</kbd> Zoom</p><p><kbd>Click surface</kbd> Select object</p>
           <p><kbd>G</kbd> Move · axis drag</p>
           <p><kbd>R</kbd> Rotate · ring drag</p>
           <p><kbd>S</kbd> Scale · axis drag</p>
