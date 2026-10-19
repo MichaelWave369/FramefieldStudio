@@ -2,6 +2,7 @@
 import {atFrame,clamp} from './scene.js';
 import {makeMoveHandles,drawMoveHandles,drawScaleHandles,makeRotateHandles,drawRotateHandles} from './gizmo.js';
 import {makeProject} from './projection.js';
+import {shadeFace,DEFAULT_LIGHTING} from './lighting.js';
 const TAU=Math.PI*2;
 const deg=n=>n*Math.PI/180;
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -83,9 +84,13 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move') {
       const points=face.map(i=>verts[i]),proj=points.map(project);
       if(proj.some(x=>!x))continue;
       const n=norm(cross(sub(points[1],points[0]),sub(points[2],points[0])));
-      const brightness=.40+.55*Math.abs(dot(n,norm([.6,1,.7])));
-      const color=rgb(object.color).map(v=>Math.round(clamp(v*brightness,0,255)));
-      polys.push({proj,color:'rgb('+color.join(',')+')',
+      const faceCenter=points[0].map((_,j)=>points.reduce((s,v)=>s+v[j],0)/points.length);
+      const eye=[camera.target[0]+Math.sin(camera.yaw)*Math.cos(camera.pitch)*camera.distance,
+        camera.target[1]+Math.sin(camera.pitch)*camera.distance,
+        camera.target[2]+Math.cos(camera.yaw)*Math.cos(camera.pitch)*camera.distance];
+      const color=shadeFace(object.color,object.material,scene.lighting||DEFAULT_LIGHTING,
+        n,faceCenter,eye);
+      polys.push({proj,color,
         depth:proj.reduce((s,x)=>s+x.depth,0)/proj.length,
         selected:object.id===selectedId});
     }

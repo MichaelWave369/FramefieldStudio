@@ -1,4 +1,5 @@
 // Original Framefield scene model. SPDX-License-Identifier: MIT
+import {sanitizeMaterial,sanitizeLighting,DEFAULT_LIGHTING,DEFAULT_MATERIAL} from './lighting.js';
 export const TYPES = ['box','sphere','pyramid','cylinder','torus'];
 export const PALETTE = ['#9991ff','#62d6ca','#f6ad73','#e994d4','#73b9eb'];
 export const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
@@ -90,15 +91,15 @@ export function putKey(object,frame,newPose) {
 export function makeObject(type='box',index=0,frame=0) {
   const kind=TYPES.includes(type)?type:'box';
   return {id:id(),type:kind,name:`${kind[0].toUpperCase()+kind.slice(1)} ${String(index+1).padStart(2,'0')}`,
-    color:PALETTE[index%PALETTE.length],visible:true,
+    color:PALETTE[index%PALETTE.length],material:{...DEFAULT_MATERIAL},visible:true,
     keyframes:[{frame,...pose([index%5-2,0,0])}]};
 }
 export function demoScene() {
-  return {version:1,name:'First Motion',fps:24,duration:120,objects:[
-    {id:id(),type:'box',name:'Orbit Cube',color:'#9a90ff',visible:true,
+  return {version:1,name:'First Motion',fps:24,duration:120,lighting:sanitizeLighting(DEFAULT_LIGHTING),objects:[
+    {id:id(),type:'box',name:'Orbit Cube',color:'#9a90ff',material:{...DEFAULT_MATERIAL},visible:true,
       keyframes:[{frame:0,...pose([-1.2,0,0])},{frame:60,...pose([1.2,0,0],[0,180,0])},
         {frame:120,...pose([-1.2,0,0],[0,360,0])}]},
-    {id:id(),type:'sphere',name:'Floating Sphere',color:'#5bd8c7',visible:true,
+    {id:id(),type:'sphere',name:'Floating Sphere',color:'#5bd8c7',material:{...DEFAULT_MATERIAL,roughness:.3},visible:true,
       keyframes:[{frame:0,...pose([1.5,-.35,0])},{frame:60,...pose([1.5,1.25,0])},
         {frame:120,...pose([1.5,-.35,0])}]}
   ]};
@@ -130,9 +131,10 @@ export function validateProject(raw) {
         scale:vec(k.scale,[1,1,1]),...(Object.keys(curves).length?{curves}:{})});
     }
     return {id:id(),type:o.type,name:String(o.name||'Shape '+(i+1)).slice(0,65),
-      color:/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#9991ff',visible:o.visible!==false,
+      color:/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#9991ff',material:sanitizeMaterial(o.material),visible:o.visible!==false,
       keyframes:[...unique.values()].sort((a,b)=>a.frame-b.frame)};
   });
   return {version:1,name:String(raw.name||'Imported Scene').slice(0,80),
-    fps:[12,24,30,60].includes(Number(raw.fps))?Number(raw.fps):24,duration,objects};
+    fps:[12,24,30,60].includes(Number(raw.fps))?Number(raw.fps):24,duration,
+    lighting:sanitizeLighting(raw.lighting),objects};
 }

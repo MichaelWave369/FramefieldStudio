@@ -1,6 +1,8 @@
 import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject,setChannelCurve,setChannelKeyValue} from './scene.js';
 import GraphEditor from './GraphEditor.jsx';
+import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
+import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
 import {hitMoveHandle,axisDragWorldDelta,hitRotateHandle,screenRotationDelta,scaledAxisValue} from './gizmo.js';
@@ -31,6 +33,7 @@ export default function App(){
   const [tool,setTool]=useState('move');
   const [timelineMode,setTimelineMode]=useState('dope');
   const [graphChannel,setGraphChannel]=useState('position.0');
+  const [inspectorTab,setInspectorTab]=useState('object');
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
   const canvasRef=useRef(null),picker=useRef([]),handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
@@ -92,6 +95,22 @@ export default function App(){
     window.addEventListener('keydown',handle);return ()=>window.removeEventListener('keydown',handle);
   });
   function withObject(fn){if(!selected)return;setScene(s=>({...s,objects:s.objects.map(o=>o.id===selectedId?fn(o):o)}));}
+  function updateMaterial(patch){
+    withObject(o=>({...o,material:sanitizeMaterial({...sanitizeMaterial(o.material),...patch})}));
+    setStatus('Updated surface material');
+  }
+  function updateLighting(patch){
+    setScene(s=>{
+      if(patch.__reset)return {...s,lighting:sanitizeLighting(DEFAULT_LIGHTING)};
+      const before=sanitizeLighting(s.lighting);
+      const next={...before,...patch};
+      for(const type of ['key','fill']){
+        if(patch[type])next[type]={...before[type],...patch[type]};
+      }
+      return {...s,lighting:sanitizeLighting(next)};
+    });
+    setStatus(patch.__reset?'Lighting reset':'Updated scene lighting');
+  }
   function editVector(group,i,value){
     const num=Number(value);if(!Number.isFinite(num))return;
     withObject(o=>{const p=atFrame(o,frame);p[group][i]=clamp(num,-10000,10000);return putKey(o,frame,p);});
@@ -138,7 +157,8 @@ export default function App(){
   function seek(next){setPlaying(false);setFrame(clamp(Math.round(next),0,scene.duration));}
   function newProject(){
     if(recording)stopRecording();
-    setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,objects:[]});
+    setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
+      lighting:sanitizeLighting(DEFAULT_LIGHTING),objects:[]});
     setSelectedId(null);setFrame(0);setStatus('New empty project');
   }
   function save(){
@@ -271,7 +291,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.4</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.5</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -342,8 +362,14 @@ export default function App(){
           <span>{tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
-        <div className="section-heading">INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
-        {!selected ? <p className="empty">Select a shape in the scene or viewport.</p> :
+        <div className="section-heading">STUDIO INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
+        <div className="inspector-tabs" role="group" aria-label="Inspector sections">
+          <button aria-pressed={inspectorTab==='object'} onClick={()=>setInspectorTab('object')}>Object</button>
+          <button aria-pressed={inspectorTab==='lighting'} onClick={()=>setInspectorTab('lighting')}>Lighting</button>
+        </div>
+        {inspectorTab==='lighting' ?
+          <LightingEditor lighting={scene.lighting} onChange={updateLighting}/> :
+        !selected ? <p className="empty">Select a shape in the scene or viewport.</p> :
         <div className="inspector">
           <label className="field-label" htmlFor="objectName">OBJECT NAME</label>
           <input id="objectName" className="object-name" value={selected.name}
@@ -356,6 +382,7 @@ export default function App(){
             <button className="ghost small" onClick={()=>withObject(o=>({...o,visible:!o.visible}))}>
               {selected.visible?'Visible':'Hidden'}</button>
           </div>
+          <MaterialEditor material={selected.material} onChange={updateMaterial}/>
           {['position','rotation','scale'].map(group=><div key={group}>
             <div className="transform-title">{group.toUpperCase()} <span>{group==='position'?'METERS':group==='rotation'?'DEGREES':'FACTOR'}</span></div>
             <div className="vector-fields">{axis.map((a,i)=><label className="vec-row" key={a}>
