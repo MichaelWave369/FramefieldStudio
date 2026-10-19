@@ -3,6 +3,8 @@ import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject,
 import GraphEditor from './GraphEditor.jsx';
 import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
 import RenderStudio from './RenderStudio.jsx';
+import MeshWorkshop from './MeshWorkshop.jsx';
+import {cloneMesh,primitiveMesh,moveMeshComponent,dragToLocal,pickComponent} from './mesh.js';
 import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,frameRange} from './shot.js';
 import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
@@ -34,6 +36,9 @@ export default function App(){
   const [camera,setCamera]=useState(cameraInitial);
   const [shape,setShape]=useState('box');
   const [tool,setTool]=useState('move');
+  const [meshMode,setMeshMode]=useState('object');
+  const [meshSelection,setMeshSelection]=useState(0);
+  const meshHits=useRef([]);
   const [timelineMode,setTimelineMode]=useState('dope');
   const [graphChannel,setGraphChannel]=useState('position.0');
   const [inspectorTab,setInspectorTab]=useState('object');
@@ -50,6 +55,7 @@ export default function App(){
   useEffect(()=>{
     if(selectedId && scene.objects.some(o=>o.id===selectedId))return;
     setSelectedId(scene.objects[0]?.id||null);
+    setMeshMode('object');setMeshSelection(0);
   },[selectedId,scene.objects]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
@@ -61,10 +67,12 @@ export default function App(){
     const view=render(canvasRef.current,scene,frame,
       previewShot?sanitizeShotCamera(scene.shotCamera):camera,
       previewShot?null:selectedId,previewShot?'orbit':tool,
-      previewShot?{helpers:false,aspect:settings.width/settings.height}:{});
+      previewShot?{helpers:false,aspect:settings.width/settings.height}:
+        {meshMode:meshMode==='object'?null:meshMode,componentSelection:meshSelection});
     picker.current=view.pick;
     handles.current=view.handles;
-  },[scene,frame,camera,selectedId,tool,previewShot,sizeVersion]);
+    meshHits.current=view.components||[];
+  },[scene,frame,camera,selectedId,tool,previewShot,meshMode,meshSelection,sizeVersion]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
     const handle=e=>{e.preventDefault();if(previewShot)return;
@@ -98,6 +106,14 @@ export default function App(){
       if(e.altKey||mod)return;
       if(e.code==='Space'){e.preventDefault();setPlaying(p=>!p);}
       if(e.key.toLowerCase()==='k' && selectedId){e.preventDefault();addKey();}
+      if(meshMode!=='object'){
+        if(['v','e','f'].includes(e.key.toLowerCase())){
+          const choices={v:'vertex',e:'edge',f:'face'};
+          setMeshMode(choices[e.key.toLowerCase()]);setMeshSelection(0);return;
+        }
+        if(e.key==='Escape'){setMeshMode('object');return;}
+        return;
+      }
       if(e.key.toLowerCase()==='g'){setTool('move');}
       if(e.key.toLowerCase()==='r'){setTool('rotate');}
       if(e.key.toLowerCase()==='s'){setTool('scale');}
@@ -136,6 +152,23 @@ export default function App(){
     setPreviewShot(true);
     setStatus('Saved shot from editor view');
   }
+  function convertToMesh(){
+    if(!selected||selected.geometry)return;
+    withObject(o=>({...o,geometry:cloneMesh(primitiveMesh(o.type))}));
+    setMeshMode('vertex');setMeshSelection(0);setPlaying(false);
+    setStatus('Converted '+selected.name+' to editable mesh');
+  }
+  function setEditMode(next){
+    setMeshMode(next);setMeshSelection(0);
+    if(next!=='object'){setPlaying(false);setPreviewShot(false);}
+    setStatus(next==='object'?'Object editing':'Mesh '+next+' selection');
+  }
+  function moveSelectedMesh(kind,index,delta,amend=false,objectId=selectedId){
+    const update=s=>({...s,objects:s.objects.map(o=>o.id===objectId&&o.geometry
+      ?{...o,geometry:moveMeshComponent(o.geometry,kind,index,delta)}:o)});
+    if(amend)amendScene(update);else setScene(update);
+    setStatus('Edited mesh '+kind+' '+(index+1));
+  }
   function editVector(group,i,value){
     const num=Number(value);if(!Number.isFinite(num))return;
     withObject(o=>{const p=atFrame(o,frame);p[group][i]=clamp(num,-10000,10000);return putKey(o,frame,p);});
@@ -151,17 +184,19 @@ export default function App(){
   function addShape(){
     if(scene.objects.length>=100){setStatus('Scene limit: 100 objects.');return;}
     const o=makeObject(shape,scene.objects.length,frame);
-    setScene(s=>({...s,objects:[...s.objects,o]}));setSelectedId(o.id);setStatus('Added '+o.name);
+    setScene(s=>({...s,objects:[...s.objects,o]}));setSelectedId(o.id);setMeshMode('object');setStatus('Added '+o.name);
   }
   function deleteSelected(){
     if(!selectedId)return;
     const remaining=scene.objects.filter(o=>o.id!==selectedId);
-    setScene(s=>({...s,objects:remaining}));setSelectedId(remaining[0]?.id||null);
+    setScene(s=>({...s,objects:remaining}));setSelectedId(remaining[0]?.id||null);setMeshMode('object');
     setStatus('Object deleted');
   }
   function duplicate(){
     if(!selected || scene.objects.length>=100)return;
-    const o={...selected,id:id(),name:selected.name+' Copy',keyframes:selected.keyframes.map(k=>({
+    const o={...selected,id:id(),name:selected.name+' Copy',
+      ...(selected.geometry?{geometry:cloneMesh(selected.geometry)}:{}),
+      keyframes:selected.keyframes.map(k=>({
       ...k,position:[k.position[0]+.5,k.position[1],k.position[2]+.5],
       rotation:[...k.rotation],scale:[...k.scale] }))};
     setScene(s=>({...s,objects:[...s.objects,o]}));setSelectedId(o.id);
@@ -186,7 +221,7 @@ export default function App(){
       lighting:sanitizeLighting(DEFAULT_LIGHTING),shotCamera:sanitizeShotCamera(DEFAULT_SHOT_CAMERA),
       renderSettings:sanitizeRender(DEFAULT_RENDER),objects:[]});
     setPreviewShot(false);
-    setSelectedId(null);setFrame(0);setStatus('New empty project');
+    setSelectedId(null);setMeshMode('object');setFrame(0);setStatus('New empty project');
   }
   function save(){
     saveBlob(new Blob([JSON.stringify(scene,null,2)],{type:'application/json'}),filename(scene.name)+'.framefield.json');
@@ -199,7 +234,7 @@ export default function App(){
       const imported=validateProject(JSON.parse(await file.text()));
       setPlaying(false);setScene(imported);setSelectedId(imported.objects[0]?.id||null);
       setPreviewShot(false);
-      setFrame(0);setStatus('Opened '+imported.name);
+      setMeshMode('object');setFrame(0);setStatus('Opened '+imported.name);
     }catch(err){setStatus('Import failed: '+err.message);}
   }
   function renderShotFrame(project,f){
@@ -284,6 +319,19 @@ export default function App(){
   function pointerDown(e){
     if(previewShot||e.button>2)return;
     const rect=e.currentTarget.getBoundingClientRect();
+    if(meshMode!=='object'&&selected?.geometry&&e.button===0&&!e.shiftKey){
+      const index=pickComponent(meshHits.current,e.clientX-rect.left,e.clientY-rect.top,14);
+      if(index!==null){
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setMeshSelection(index);setPlaying(false);
+        const item=meshHits.current.find(h=>h.index===index);
+        drag.current={kind:'mesh',meshKind:meshMode,index,objectId:selectedId,
+          source:cloneMesh(selected.geometry),p:atFrame(selected,frame),
+          depth:item?.depth||camera.distance,sx:e.clientX,sy:e.clientY,
+          changed:false,width:rect.width,height:rect.height};
+        return;
+      }
+    }
     const handle=tool!=='orbit' && e.button===0 && !e.shiftKey && selected && selected.visible
       ?(tool==='rotate'?hitRotateHandle:hitMoveHandle)(handles.current,
          e.clientX-rect.left,e.clientY-rect.top):null;
@@ -301,6 +349,16 @@ export default function App(){
   function pointerMove(e){
     if(previewShot)return;
     const d=drag.current;if(!d)return;
+    if(d.kind==='mesh'){
+      const delta=dragToLocal(camera,d.p,d.depth,e.clientX-d.sx,e.clientY-d.sy,
+        d.width,d.height,e.altKey);
+      if(!d.changed&&Math.hypot(...delta)<.001)return;
+      const geometry=moveMeshComponent(d.source,d.meshKind,d.index,delta);
+      const update=s=>({...s,objects:s.objects.map(o=>o.id===d.objectId
+        ?{...o,geometry}:o)});
+      if(!d.changed){setScene(update);d.changed=true;}else amendScene(update);
+      return;
+    }
     if(d.kind==='axis'){
       const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
       const group=d.mode==='move'?'position':d.mode==='rotate'?'rotation':'scale';
@@ -340,6 +398,10 @@ export default function App(){
   function pointerUp(e){
     if(previewShot)return;
     const d=drag.current;if(!d)return;
+    if(d.kind==='mesh'){
+      if(d.changed)setStatus('Moved mesh '+d.meshKind+' '+(d.index+1)+' · one Undo step');
+      drag.current=null;return;
+    }
     if(d.kind==='axis'){
       if(d.changed)setStatus(d.mode+' '+d.handle.name+' · one undo step · F'+d.at);
       drag.current=null;return;
@@ -367,7 +429,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.6</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.7</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -393,7 +455,7 @@ export default function App(){
         <div className="scene-list" role="listbox" aria-label="Scene objects">
           {scene.objects.map(o=><button role="option" aria-selected={selectedId===o.id}
             className={'scene-object '+(selectedId===o.id?'active':'')} key={o.id}
-            onClick={()=>setSelectedId(o.id)}>
+            onClick={()=>{setSelectedId(o.id);setMeshMode('object');setMeshSelection(0);}}>
             <span className="shape-icon">{icon[o.type]}</span><span className="scene-name">{o.name}</span>
             {!o.visible && <span className="muted">Hidden</span>}
           </button>)}
@@ -412,11 +474,11 @@ export default function App(){
           <p><kbd>O</kbd> Orbit camera</p>
           <p><kbd>Alt</kbd> + drag Snapping</p>
           <p><kbd>Ctrl</kbd> + <kbd>Z</kbd> Undo</p>
-          <p><kbd>Space</kbd> Play / pause</p><p><kbd>K</kbd> Add keyframe</p>
+          <p><kbd>V/E/F</kbd> Mesh vertices / edges / faces</p><p><kbd>Esc</kbd> Exit mesh edit</p><p><kbd>Space</kbd> Play / pause</p><p><kbd>K</kbd> Add keyframe</p>
         </div>
       </aside>
       <section className="viewport-panel" aria-label="3D viewport">
-        <div className="view-top"><div><span className="view-tag">{previewShot?'SHOT CAMERA':'PERSPECTIVE'}</span>
+        <div className="view-top"><div><span className="view-tag">{previewShot?'SHOT CAMERA':meshMode!=='object'?'MESH '+meshMode.toUpperCase():'PERSPECTIVE'}</span>
           <span>World / Frame {String(frame).padStart(3,'0')}</span></div>
           <div className="viewport-actions" role="toolbar" aria-label="Viewport tools">
             <button className={'tool-button '+(previewShot?'chosen':'')}
@@ -438,7 +500,7 @@ export default function App(){
           onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>
         <div className="axis-compass" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
         <div className="view-bottom"><span>Original software 3D renderer · no external assets</span>
-          <span>{previewShot?'Clean shot preview · camera locked':tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
+          <span>{previewShot?'Clean shot preview · camera locked':meshMode!=='object'?'Mesh '+meshMode+' · drag marker · Alt snaps':tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
         <div className="section-heading">STUDIO INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
@@ -470,6 +532,9 @@ export default function App(){
             <button className="ghost small" onClick={()=>withObject(o=>({...o,visible:!o.visible}))}>
               {selected.visible?'Visible':'Hidden'}</button>
           </div>
+          <MeshWorkshop object={selected} mode={meshMode} selectedComponent={meshSelection}
+            onConvert={convertToMesh} onModeChange={setEditMode}
+            onSelectionChange={setMeshSelection} onMove={moveSelectedMesh}/>
           <MaterialEditor material={selected.material} onChange={updateMaterial}/>
           {['position','rotation','scale'].map(group=><div key={group}>
             <div className="transform-title">{group.toUpperCase()} <span>{group==='position'?'METERS':group==='rotation'?'DEGREES':'FACTOR'}</span></div>
