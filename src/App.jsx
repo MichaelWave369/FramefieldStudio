@@ -612,7 +612,7 @@ export default function App(){
       onCancel={()=>{setReplacementWarning(null);setStatus('Replacement cancelled · scene unchanged');}}
       onDownload={save}
       onProceed={()=>{const action=replacementWarning.action;
-        setReplacementWarning(null);action();}}/>
+        setReplacementWarning(null);action();}}/>}
 
     <header className="topbar">
       <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React v1.0 candidate</small></div></div>
