@@ -10,7 +10,7 @@ test('published-path React studio boots, renders UI and allows editing', async (
   await expect(page.getByText('FRAMEFIELD', {exact:true})).toBeVisible();
   await expect(page.getByRole('option', {name:/Orbit Cube/})).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.getByText('DOPE SHEET')).toBeVisible();
+  await expect(page.getByText('DOPE SHEET',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'+ Add'}).click();
   await expect(page.getByText('3 objects')).toBeVisible();
   await expect(page.getByText('3 objects')).toBeVisible();
@@ -104,4 +104,59 @@ test('scale gizmo changes one axis and undo restores its scale',async({page})=>{
  await page.getByRole('button',{name:/Undo/}).click();
  await expect(page.getByRole('spinbutton',{name:'scale X'})).toHaveValue(String(original));
  expect(errors).toEqual([]);
+});
+
+test('graph editor changes interpolation and Undo restores the linear value',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Graph Editor'}).click();
+  await expect(page.getByRole('img',{name:'Editable animation curve'})).toBeVisible();
+  await page.getByRole('combobox',{name:'Curve preset'}).selectOption('easeIn');
+  await expect(page.getByRole('combobox',{name:'Curve preset'})).toHaveValue('easeIn');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('combobox',{name:'Curve preset'})).toHaveValue('linear');
+  expect(errors).toEqual([]);
+});
+
+test('graph key drag edits a selected channel value; Undo and Redo work',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Graph Editor'}).click();
+  const node=page.getByTestId('curve-key-60');
+  await expect(node).toBeVisible();
+  await node.click(); // Select frame 60 before measuring the inspector's value.
+  await expect(page.getByRole('spinbutton',{name:'position X'})).toHaveValue('1.2');
+  const box=await node.boundingBox();
+  const before=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2-35,{steps:8});
+  await page.mouse.up();
+  const after=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(after).toBeGreaterThan(before+.15);
+  await page.getByRole('button',{name:/Undo/}).click();
+  const old=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(old).toBeCloseTo(before,2);
+  await page.getByRole('button',{name:/Redo/}).click();
+  const again=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(again).toBeCloseTo(after,2);
+  expect(errors).toEqual([]);
+});
+
+test('curve handles can be dragged into a custom easing shape',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Graph Editor'}).click();
+  const preset=page.getByRole('combobox',{name:'Curve preset'});
+  await preset.selectOption('smooth');
+  const handle=page.getByTestId('curve-handle-0');
+  await expect(handle).toBeVisible();
+  const box=await handle.boundingBox();
+  const center={x:box.x+box.width/2,y:box.y+box.height/2};
+  await page.mouse.move(center.x,center.y);await page.mouse.down();
+  await page.mouse.move(center.x+24,center.y-12,{steps:6});await page.mouse.up();
+  await expect(preset).toHaveValue('custom');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(preset).toHaveValue('smooth');
+  expect(errors).toEqual([]);
 });

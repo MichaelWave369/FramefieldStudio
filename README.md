@@ -63,11 +63,21 @@ Save JSON from the toolbar. Nothing is automatically uploaded or saved remotely.
 - All gizmo edits create/update transform keyframes at the current frame, and each completed drag is one Undo action.
 - World-aligned controls are a first step; local-axis manipulators and custom rotation ordering are future work.
 
+## Graph Editor and easing curves (v0.4)
+
+Switch from **Dope Sheet** to **Graph Editor** in the animation timeline. Choose one of nine independent channels (Position/Rotation/Scale × X/Y/Z), then:
+- Drag **keyframe dots vertically** to edit the chosen transform value at its existing frame.
+- Choose the outgoing segment and set **Linear, Smooth, Ease In, Ease Out, or Hold** interpolation.
+- Drag the two golden cubic Bezier handles for custom easing within each selected segment. Frames stay fixed in this version.
+- Changes update the same scene keyframes rendered in the 3D viewport and are undoable, with a continuous drag stored as a single undo step.
+- Save/open JSON includes a small optional `curves` map on source keyframes. v0.1–v0.3 projects with no `curves` continue to play **linear** by default.
+- Bezier control points stay within 0–1 on both axes to avoid unwanted overshoot; true overshoot and independent key time retiming are future work.
+
 ## Roadmap
 
-- Undo/redo, vertex/edge/face mesh editing, draggable transform gizmos
+- Vertex/edge/face mesh editing, finer object picking and manipulators
 - Better viewport picking, GPU/WebGL2 rendering and material lighting
-- Interpolation curves, animation tracks, keyframe moving
+- Animation track grouping, graph zoom/pan, keyframe retiming and overshoot tangents
 - Model import/export via independently written serializers
 - Bone/rig animation, camera shots, offline frame-accurate export
 - Optional desktop packaging
