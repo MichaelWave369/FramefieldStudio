@@ -2,7 +2,14 @@
 
 An **original, MIT-licensed React/Vite browser 3D keyframe animation editor**. Working title. This is an independent project inspired by familiar animation-editor workflows, not a fork of Blender and not affiliated with it.
 
-## Features in this React alpha
+**Status:** v1.0 candidate. The release is not tagged stable until the
+[release checklist](docs/V1_RELEASE_CHECKLIST.md) and manual review pass.
+
+**New creator?** Open **Quick Start** in the studio or read the
+[Creator User Manual](docs/USER_MANUAL.md). Use **Starter Scenes** to try one
+of four projects or download a portable example JSON without affecting your work.
+
+## Current features (release candidate)
 
 - Fully interactive 3D canvas with original, dependency-free software perspective mesh renderer
 - Orbit, pan, zoom, grid and XYZ axes, object picking
@@ -11,6 +18,7 @@ An **original, MIT-licensed React/Vite browser 3D keyframe animation editor**. W
 - Object transforms, colors, interpolation between keyframes
 - Timeline playback at 12/24/30/60 FPS, frame scrubbing, keyframe navigation
 - JSON project save/load (locally), PNG snapshots and browser-supported real-time WebM recording
+- Original starter scenes, in-app guided tour, downloadable example JSON, and explicit local autosave recovery
 - No account, analytics, remote project upload or database
 
 **Renderer note:** This React port uses a Canvas2D software 3D renderer. The earlier standalone proof-of-concept had a WebGL2 path. A future improvement can migrate GPU rendering behind the same pure scene model. This is not Blender feature parity: geometry editing is limited, and there is no sculpting, UVs, rigging or GPU ray tracing yet.
@@ -192,6 +200,18 @@ undoable.
 
 **Status:** v1.0 *release candidate*, not an announced stable release. All
 runtime data remains local; nothing syncs across browsers or devices.
+
+## Creator release kit (PR #12)
+
+- **Quick Start:** a six-step in-app guide linking directly to starter projects,
+  object modeling, Graph Editor, lighting, camera/render and JSON backup.
+- **Download examples:** each original starter has a separate Download JSON
+  button. Downloading never replaces the active scene or touches Undo history.
+- **User Manual:** [docs/USER_MANUAL.md](docs/USER_MANUAL.md) explains creating,
+  modeling, animating, lighting, rendering, saving, troubleshooting and known
+  feature limits. No video or external imagery is needed to use the guide.
+- This changes **creator onboarding**, not the rendering engine. The milestone
+  stays a release candidate until a human performs manual acceptance testing.
 
 ## Roadmap
 
