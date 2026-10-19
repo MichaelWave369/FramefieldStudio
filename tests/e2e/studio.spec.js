@@ -55,3 +55,53 @@ test('axis gizmo drag modifies the selected object in one undo step',async({page
   await expect(page.getByRole('spinbutton',{name:'position X'})).toHaveValue(String(original));
   expect(errors).toEqual([]);
 });
+
+test('rotation gizmo changes a keyframe and undo restores the original angle',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+ await page.getByRole('button',{name:/Rotate/}).click();
+ await expect(page.getByRole('button',{name:/Rotate/})).toHaveAttribute('aria-pressed','true');
+ const node=page.locator('canvas');
+ const box=await node.boundingBox();
+ const {makeProject}=await import('../../src/projection.js');
+ const {makeRotateHandles,hitRotateHandle}=await import('../../src/gizmo.js');
+ const projector=makeProject({yaw:.66,pitch:.32,distance:9.3,target:[0,0,0]},box.width,box.height);
+ const rings=makeRotateHandles({position:[-1.2,0,0]},projector);
+ const z=rings.find(h=>h.name==='Z');
+ const point=z.points.slice(0,-1).find(p=>hitRotateHandle(rings,p.x,p.y)?.name==='Z' &&
+   Math.hypot(p.x-z.origin.x,p.y-z.origin.y)>25);
+ expect(point).toBeTruthy();
+ const start={x:box.x+point.x,y:box.y+point.y};
+ const rad=.35,rx=point.x-z.origin.x,ry=point.y-z.origin.y;
+ const end={x:box.x+z.origin.x+rx*Math.cos(rad)-ry*Math.sin(rad),
+   y:box.y+z.origin.y+rx*Math.sin(rad)+ry*Math.cos(rad)};
+ const before=Number(await page.getByRole('spinbutton',{name:'rotation Z'}).inputValue());
+ await page.mouse.move(start.x,start.y);await page.mouse.down();
+ await page.mouse.move(end.x,end.y,{steps:7});await page.mouse.up();
+ const after=Number(await page.getByRole('spinbutton',{name:'rotation Z'}).inputValue());
+ expect(after).toBeGreaterThan(before+10);
+ await page.getByRole('button',{name:/Undo/}).click();
+ await expect(page.getByRole('spinbutton',{name:'rotation Z'})).toHaveValue(String(before));
+ expect(errors).toEqual([]);
+});
+
+test('scale gizmo changes one axis and undo restores its scale',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+ await page.getByRole('button',{name:/Scale/}).click();
+ const node=page.locator('canvas'),box=await node.boundingBox();
+ const {makeProject}=await import('../../src/projection.js');
+ const {makeMoveHandles}=await import('../../src/gizmo.js');
+ const p=makeProject({yaw:.66,pitch:.32,distance:9.3,target:[0,0,0]},box.width,box.height);
+ const x=makeMoveHandles({position:[-1.2,0,0]},p).find(h=>h.name==='X');
+ expect(x).toBeTruthy();
+ const start={x:box.x+x.origin.x+x.dx*.8,y:box.y+x.origin.y+x.dy*.8};
+ const original=Number(await page.getByRole('spinbutton',{name:'scale X'}).inputValue());
+ await page.mouse.move(start.x,start.y);await page.mouse.down();
+ await page.mouse.move(start.x+x.dx*.6,start.y+x.dy*.6,{steps:8});await page.mouse.up();
+ const changed=Number(await page.getByRole('spinbutton',{name:'scale X'}).inputValue());
+ expect(changed).toBeGreaterThan(original+.2);
+ await page.getByRole('button',{name:/Undo/}).click();
+ await expect(page.getByRole('spinbutton',{name:'scale X'})).toHaveValue(String(original));
+ expect(errors).toEqual([]);
+});

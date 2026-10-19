@@ -55,6 +55,14 @@ Save JSON from the toolbar. Nothing is automatically uploaded or saved remotely.
 - Each complete gizmo drag is exactly one undo step. History is in-memory and capped to 70 edits; it is not part of exported JSON projects.
 - Changing object properties, adding keyframes, and importing projects are also undoable.
 
+## Rotate and scale tools (v0.3)
+
+- Select **Rotate** (keyboard `R`) to show three colored world-axis rotation rings, then drag a ring. Hold **Alt** to snap angles to 15°.
+- Select **Scale** (keyboard `S`) to show square-ended axis handles. Drag to resize the selected axis. Hold **Alt** for increments of 0.1.
+- Scale preserves the original sign for mirrored axes and clamps magnitude to avoid zero-sized or explosive shapes.
+- All gizmo edits create/update transform keyframes at the current frame, and each completed drag is one Undo action.
+- World-aligned controls are a first step; local-axis manipulators and custom rotation ordering are future work.
+
 ## Roadmap
 
 - Undo/redo, vertex/edge/face mesh editing, draggable transform gizmos

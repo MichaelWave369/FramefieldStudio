@@ -2,7 +2,7 @@ import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject} from './scene.js';
 import {render} from './renderer.js';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
-import {hitMoveHandle,axisDragWorldDelta} from './gizmo.js';
+import {hitMoveHandle,axisDragWorldDelta,hitRotateHandle,screenRotationDelta,scaledAxisValue} from './gizmo.js';
 import './style.css';
 
 const icon={box:'⬡',sphere:'◉',pyramid:'△',cylinder:'▥',torus:'◎'};
@@ -81,6 +81,8 @@ export default function App(){
       if(e.code==='Space'){e.preventDefault();setPlaying(p=>!p);}
       if(e.key.toLowerCase()==='k' && selectedId){e.preventDefault();addKey();}
       if(e.key.toLowerCase()==='g'){setTool('move');}
+      if(e.key.toLowerCase()==='r'){setTool('rotate');}
+      if(e.key.toLowerCase()==='s'){setTool('scale');}
       if(e.key.toLowerCase()==='o'){setTool('orbit');}
       if(e.key==='Delete' && selectedId){e.preventDefault();deleteSelected();}
     };
@@ -173,12 +175,13 @@ export default function App(){
   function pointerDown(e){
     if(e.button>2)return;
     const rect=e.currentTarget.getBoundingClientRect();
-    const handle=tool==='move' && e.button===0 && !e.shiftKey && selected
-      ?hitMoveHandle(handles.current,e.clientX-rect.left,e.clientY-rect.top):null;
+    const handle=tool!=='orbit' && e.button===0 && !e.shiftKey && selected && selected.visible
+      ?(tool==='rotate'?hitRotateHandle:hitMoveHandle)(handles.current,
+         e.clientX-rect.left,e.clientY-rect.top):null;
     e.currentTarget.setPointerCapture(e.pointerId);
     if(handle){
       setPlaying(false);
-      drag.current={kind:'axis',handle,sx:e.clientX,sy:e.clientY,
+      drag.current={kind:'axis',mode:tool,handle,sx:e.clientX,sy:e.clientY,
         original:atFrame(selected,frame),objectId:selected.id,at:frame,changed:false};
     }else{
       drag.current={kind:'camera',x:e.clientX,y:e.clientY,
@@ -188,10 +191,25 @@ export default function App(){
   function pointerMove(e){
     const d=drag.current;if(!d)return;
     if(d.kind==='axis'){
-      const amount=axisDragWorldDelta(d.handle,e.clientX-d.sx,e.clientY-d.sy,e.altKey);
-      if(!d.changed && Math.abs(amount)<.001)return;
-      const nextPose={...d.original,position:[...d.original.position]};
-      nextPose.position[d.handle.index]=clamp(nextPose.position[d.handle.index]+amount,-10000,10000);
+      const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
+      const group=d.mode==='move'?'position':d.mode==='rotate'?'rotation':'scale';
+      const nextPose={...d.original,[group]:[...d.original[group]]};
+      const original=d.original[group][d.handle.index];
+      let nextValue;
+      if(d.mode==='move'){
+        const delta=axisDragWorldDelta(d.handle,dx,dy,e.altKey);
+        nextValue=clamp(original+delta,-10000,10000);
+      }else if(d.mode==='rotate'){
+        const delta=screenRotationDelta(d.handle.origin,
+          {x:d.sx,y:d.sy},
+          {x:e.clientX,y:e.clientY},e.altKey);
+        nextValue=clamp(original+delta,-10000,10000);
+      }else{
+        nextValue=scaledAxisValue(original,d.handle,dx,dy,e.altKey);
+      }
+      // Ignore click-sized pointer noise; don't create a spurious keyframe.
+      if(!d.changed && Math.abs(nextValue-original)<.001)return;
+      nextPose[group][d.handle.index]=nextValue;
       const update=s=>({...s,objects:s.objects.map(o=>o.id===d.objectId
         ?putKey(o,d.at,nextPose):o)});
       if(!d.changed){setScene(update);d.changed=true;}
@@ -211,7 +229,7 @@ export default function App(){
   function pointerUp(e){
     const d=drag.current;if(!d)return;
     if(d.kind==='axis'){
-      if(d.changed)setStatus('Moved '+d.handle.name+' · one undo step · F'+d.at);
+      if(d.changed)setStatus(d.mode+' '+d.handle.name+' · one undo step · F'+d.at);
       drag.current=null;return;
     }
     if(Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<5){
@@ -237,7 +255,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.2</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.3</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -276,8 +294,11 @@ export default function App(){
         <div className="hints"><div className="section-heading">VIEW CONTROLS</div>
           <p><kbd>Drag</kbd> Orbit camera</p><p><kbd>Shift</kbd> + <kbd>Drag</kbd> Pan</p>
           <p><kbd>Scroll</kbd> Zoom</p><p><kbd>Click</kbd> Select object</p>
-          <p><kbd>G</kbd> Move tool · drag an axis</p>
-          <p><kbd>O</kbd> Orbit tool</p><p><kbd>Alt</kbd> + axis drag Snaps 0.25m</p>
+          <p><kbd>G</kbd> Move · axis drag</p>
+          <p><kbd>R</kbd> Rotate · ring drag</p>
+          <p><kbd>S</kbd> Scale · axis drag</p>
+          <p><kbd>O</kbd> Orbit camera</p>
+          <p><kbd>Alt</kbd> + drag Snapping</p>
           <p><kbd>Ctrl</kbd> + <kbd>Z</kbd> Undo</p>
           <p><kbd>Space</kbd> Play / pause</p><p><kbd>K</kbd> Add keyframe</p>
         </div>
@@ -287,9 +308,13 @@ export default function App(){
           <span>World / Frame {String(frame).padStart(3,'0')}</span></div>
           <div className="viewport-actions" role="toolbar" aria-label="Viewport tools">
             <button className={'tool-button '+(tool==='move'?'chosen':'')} aria-pressed={tool==='move'}
-              onClick={()=>setTool('move')} title="Move selected object by dragging X, Y or Z handle · G">✥ Move</button>
+              onClick={()=>setTool('move')} title="Move · G · Alt snaps 0.25 units">✥ Move</button>
+            <button className={'tool-button '+(tool==='rotate'?'chosen':'')} aria-pressed={tool==='rotate'}
+              onClick={()=>setTool('rotate')} title="Rotate · R · Alt snaps 15 degrees">⟳ Rotate</button>
+            <button className={'tool-button '+(tool==='scale'?'chosen':'')} aria-pressed={tool==='scale'}
+              onClick={()=>setTool('scale')} title="Scale · S · Alt snaps 0.1">□ Scale</button>
             <button className={'tool-button '+(tool==='orbit'?'chosen':'')} aria-pressed={tool==='orbit'}
-              onClick={()=>setTool('orbit')} title="Orbit camera without move handles · O">◎ Orbit</button>
+              onClick={()=>setTool('orbit')} title="Orbit camera · O">◎ Orbit</button>
             <button className="ghost small" onClick={()=>setCamera(cameraInitial())}>Reset camera</button>
           </div>
         </div>
@@ -298,7 +323,7 @@ export default function App(){
           onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>
         <div className="axis-compass" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
         <div className="view-bottom"><span>Original software 3D renderer · no external assets</span>
-          <span>{tool==='move'?'Drag X / Y / Z handles to move · Alt snaps':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
+          <span>{tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
         <div className="section-heading">INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
