@@ -1,2 +1,3 @@
 import {defineConfig} from 'vite';
-export default defineConfig({base:'/FramefieldStudio/'});
+// Automatic JSX runtime keeps components from crashing if they omit `import React`.
+export default defineConfig({base:'/FramefieldStudio/',esbuild:{jsx:'automatic'}});

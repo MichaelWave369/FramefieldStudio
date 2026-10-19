@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject} from './scene.js';
 import {render} from './renderer.js';
 import './style.css';
