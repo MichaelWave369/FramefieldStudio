@@ -213,6 +213,26 @@ runtime data remains local; nothing syncs across browsers or devices.
 - This changes **creator onboarding**, not the rendering engine. The milestone
   stays a release candidate until a human performs manual acceptance testing.
 
+## Scene Vault and safe project replacement (PR #13)
+
+- Use **Scene Vault** in the toolbar to create a manual checkpoint, inspect
+  recent checkpoints, **Restore**, **Download JSON**, or **Delete** one with an
+  additional confirmation.
+- Framefield automatically checkpoints the current scene **before** creating
+  a new project, opening valid JSON, or loading a starter. Restoring a previous
+  checkpoint protects the current scene first. The last five checkpoints are
+  retained; older ones roll off as space is needed.
+- The vault uses a single atomic browser-local storage write with an overall
+  2.7-million-character cap. No account, upload, telemetry or sync is involved.
+- If saving a checkpoint fails (for example a full/disabled storage quota), the
+  existing project remains untouched. An explicit warning offers **Download
+  current JSON**, **Cancel replacement**, or **Replace anyway**. No false claim
+  of successful backup is made.
+- These are helpful local recovery points, **not durable cloud backups**:
+  clearing site data removes them. Always keep independent JSON downloads.
+- The release remains a **v1.0 candidate** until the live browser/manual
+  checklist and version tagging have been reviewed.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators

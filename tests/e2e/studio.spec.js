@@ -640,3 +640,88 @@ test('downloaded example JSON can be opened and rendered in a new project',async
   expect(bytes.readUInt32BE(20)).toBe(540);
   expect(errors).toEqual([]);
 });
+
+test('Scene Vault automatically protects a project before New, and restores it with Undo',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('textbox',{name:'Project name'}).fill('My Scene Vault Sculpture');
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Untitled Motion');
+  await page.getByRole('button',{name:'Scene Vault'}).click();
+  const vault=page.getByRole('dialog',{name:'Scene Vault'});
+  await expect(vault).toContainText('My Scene Vault Sculpture');
+  await expect(vault).toContainText('Before new project');
+  await vault.getByRole('button',{name:'Restore',exact:true}).click();
+  await expect(vault).toHaveCount(0);
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('My Scene Vault Sculpture');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Untitled Motion');
+  expect(errors).toEqual([]);
+});
+
+test('Scene Vault protects current scene on starter switch, and checkpoint export does not alter scene',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('textbox',{name:'Project name'}).fill('Before the Turntable');
+  await page.getByRole('button',{name:'Starter Scenes'}).click();
+  await page.getByRole('dialog',{name:'Starter scenes'}).getByRole('button',{name:'Create Turntable'}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Turntable Study');
+  await page.getByRole('button',{name:'Scene Vault'}).click();
+  const vault=page.getByRole('dialog',{name:'Scene Vault'});
+  await expect(vault).toContainText('Before starter scene');
+  const event=page.waitForEvent('download');
+  await vault.getByRole('button',{name:'Download JSON'}).click();
+  const file=await event;
+  const data=JSON.parse(await (await import('node:fs/promises')).readFile(await file.path(),'utf8'));
+  expect(data.name).toBe('Before the Turntable');
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Turntable Study');
+  await vault.getByRole('button',{name:'Delete Before the Turntable'}).click();
+  await expect(vault.getByRole('button',{name:'Confirm delete Before the Turntable'})).toBeVisible();
+  await vault.getByRole('button',{name:'Confirm delete Before the Turntable'}).click();
+  await expect(vault).not.toContainText('Before the Turntable');
+  expect(errors).toEqual([]);
+});
+
+test('storage quota failure pauses destructive replacement and permits JSON backup or cancellation',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const project=page.getByRole('textbox',{name:'Project name'});
+  await project.fill('Keep Me Safe');
+  await page.evaluate(()=>{
+    const original=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(key,value){
+      if(String(key).includes('scene-vault'))throw Error('Simulated quota');
+      return original.call(this,key,value);
+    };
+  });
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  const warning=page.getByRole('dialog',{name:'Project replacement warning'});
+  await expect(warning).toContainText('Simulated quota');
+  await expect(project).toHaveValue('Keep Me Safe');
+  await warning.getByRole('button',{name:'Cancel replacement'}).click();
+  await expect(project).toHaveValue('Keep Me Safe');
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  const event=page.waitForEvent('download');
+  await warning.getByRole('button',{name:'Download current JSON'}).click();
+  const backup=await event;
+  const json=JSON.parse(await (await import('node:fs/promises')).readFile(await backup.path(),'utf8'));
+  expect(json.name).toBe('Keep Me Safe');
+  await warning.getByRole('button',{name:'Replace anyway'}).click();
+  await expect(project).toHaveValue('Untitled Motion');
+  expect(errors).toEqual([]);
+});
+
+test('opening imported JSON creates a Scene Vault checkpoint of the preceding project',async({page})=>{
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('textbox',{name:'Project name'}).fill('Before Import');
+  const data={version:1,name:'Imported Work',fps:24,duration:120,
+    objects:[]};
+  await page.locator('input[type="file"]').setInputFiles({
+    name:'from-another-machine.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify(data))
+  });
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Imported Work');
+  await page.getByRole('button',{name:'Scene Vault'}).click();
+  await expect(page.getByRole('dialog',{name:'Scene Vault'})).toContainText('Before opening JSON');
+  await expect(page.getByRole('dialog',{name:'Scene Vault'})).toContainText('Before Import');
+});
