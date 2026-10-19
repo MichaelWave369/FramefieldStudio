@@ -63,3 +63,25 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .light-vector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .light-vector label{display:flex;flex-direction:column;gap:4px;color:#a8badd;font-size:11px}
 .light-vector input{width:100%;font-size:11px;text-align:center;padding:5px 2px}
+
+/* Framefield v0.6: Camera & Render Studio */
+.inspector-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.inspector-tabs button{font-size:11px;white-space:nowrap;padding:8px 3px}
+.shot-studio{display:flex;flex-direction:column;gap:10px;padding-bottom:14px}
+.shot-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.shot-actions button{font-size:11px;padding:8px 4px}
+.shot-fields{display:grid;grid-template-columns:1fr;gap:7px}
+.shot-field{display:flex;align-items:center;justify-content:space-between;gap:9px;
+  font-size:11px;color:#b7c6df}
+.shot-field input[type=number]{width:83px;text-align:right}
+.shot-field input[type=color]{width:83px;height:29px;padding:2px}
+.shot-field select{width:145px;font-size:11px}
+.shot-studio>.transform-title{margin:12px 0 4px}
+.shot-range{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.shot-range label{display:flex;flex-direction:column;gap:5px;font-size:10px;
+  color:#8fa3c1;font-weight:700}
+.shot-range input{width:100%;padding:7px 5px;text-align:center;font-size:12px}
+.render-progress{border:1px solid #467c80;background:#17333c;color:#a0f0e5;
+  border-radius:7px;padding:10px;text-align:center;font-weight:700}
+.viewport-actions{max-width:82%}
+@media(max-width:960px){.viewport-actions{max-width:92%}.tool-button{padding:5px 4px;font-size:10px}}

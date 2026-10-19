@@ -209,3 +209,76 @@ test('material and scene-light settings survive a downloaded project and reload'
   await expect(page.getByRole('spinbutton',{name:'Metalness'})).toHaveValue('0.92');
   expect(errors).toEqual([]);
 });
+
+test('saved shot preview keeps editor view separate and Render PNG has chosen dimensions',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Camera/Render'}).click();
+  await expect(page.getByRole('spinbutton',{name:'Shot distance'})).toHaveValue('9.3');
+  await page.getByRole('spinbutton',{name:'Shot distance'}).fill('14');
+  await page.getByRole('combobox',{name:'Render resolution'}).selectOption('640x360');
+  await page.locator('input[aria-label="Render background"]').fill('#222a44');
+  await page.getByRole('button',{name:'Preview Shot'}).click();
+  await expect(page.getByText('SHOT CAMERA',{exact:true})).toBeVisible();
+  await expect(page.getByText(/camera locked/)).toBeVisible();
+  const event=page.waitForEvent('download');
+  await page.getByRole('button',{name:/Render Frame 0/}).click();
+  const file=await event;
+  expect(file.suggestedFilename()).toMatch(/shot-f0000\.png$/);
+  const bytes=await (await import('node:fs/promises')).readFile(await file.path());
+  expect(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))).toBe(true);
+  expect(bytes.readUInt32BE(16)).toBe(640);
+  expect(bytes.readUInt32BE(20)).toBe(360);
+  await page.getByRole('button',{name:'Save JSON'}).click();
+  // A regular JSON export still works with the new camera and render settings.
+  const unsaved=page.getByRole('spinbutton',{name:'Shot distance'});
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(unsaved).toHaveValue('14'); // undo the background edit, not the camera edit
+  expect(errors).toEqual([]);
+});
+
+test('PNG frame sequence ZIP contains the requested numbered frames',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Camera/Render'}).click();
+  await page.getByRole('combobox',{name:'Render resolution'}).selectOption('640x360');
+  await page.getByRole('spinbutton',{name:'Sequence start'}).fill('2');
+  await page.getByRole('spinbutton',{name:'Sequence end'}).fill('6');
+  await page.getByRole('spinbutton',{name:'Sequence step'}).fill('2');
+  await expect(page.getByText(/3 PNG frames/)).toBeVisible();
+  const event=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export PNG Sequence ZIP'}).click();
+  const file=await event;
+  expect(file.suggestedFilename()).toMatch(/frames-2-6\.zip$/);
+  const bytes=await (await import('node:fs/promises')).readFile(await file.path());
+  expect(bytes.readUInt32LE(0)).toBe(0x04034b50);
+  const text=bytes.toString('latin1');
+  expect(text).toContain('frame_0002.png');
+  expect(text).toContain('frame_0004.png');
+  expect(text).toContain('frame_0006.png');
+  expect(bytes.readUInt16LE(bytes.length-22+10)).toBe(3);
+  expect(errors).toEqual([]);
+});
+
+test('shot camera and render settings survive JSON project round-trip',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Camera/Render'}).click();
+  await page.getByRole('spinbutton',{name:'Shot distance'}).fill('17');
+  await page.getByRole('combobox',{name:'Render resolution'}).selectOption('1280x720');
+  const save=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Save JSON'}).click();
+  const download=await save;
+  const data=JSON.parse(await (await import('node:fs/promises')).readFile(await download.path(),'utf8'));
+  expect(data.shotCamera.distance).toBe(17);
+  expect(data.renderSettings.width).toBe(1280);
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await expect(page.getByRole('spinbutton',{name:'Shot distance'})).toHaveValue('9.3');
+  await page.locator('input[type="file"]').setInputFiles({
+    name:'framefield-render-round-trip.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify(data))
+  });
+  await expect(page.getByRole('spinbutton',{name:'Shot distance'})).toHaveValue('17');
+  await expect(page.getByRole('combobox',{name:'Render resolution'})).toHaveValue('1280x720');
+  expect(errors).toEqual([]);
+});
