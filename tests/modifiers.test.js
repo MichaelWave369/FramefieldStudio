@@ -59,7 +59,8 @@ test('import guards reject bad modifier values and excess stack size',()=>{
   assert.throws(()=>sanitizeModifiers(Array.from({length:5},()=>({type:'mirror',axis:0}))),/stack/);
 });
 test('complex subdivision gracefully stops before allocating enormous geometry',()=>{
-  const large={vertices:Array.from({length:2000},(_,i)=>[i%10,Math.floor(i/10)%10,0]),
-    faces:Array.from({length:1500},(_,i)=>[i,i+1,i+2,i+3])};
+  // Separate quads have manifold/boundary edges but overflow the output budget.
+  const large={vertices:Array.from({length:6000},(_,i)=>[i%100,Math.floor(i/100),0]),
+    faces:Array.from({length:1500},(_,i)=>[i*4,i*4+1,i*4+2,i*4+3])};
   assert.throws(()=>subdivideOnce(large),/budget/);
 });
