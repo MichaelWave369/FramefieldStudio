@@ -20,12 +20,18 @@ test('published-path React studio boots, renders UI and allows editing', async (
 test('undo and redo from the editor toolbar restore objects',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
-  await page.getByRole('button',{name:'+ Add'}).click();
-  await expect(page.getByText('3 objects')).toBeVisible();
-  await page.getByRole('button',{name:/Undo/}).click();
-  await expect(page.getByText('2 objects')).toBeVisible();
-  await page.getByRole('button',{name:/Redo/}).click();
-  await expect(page.getByText('3 objects')).toBeVisible();
+  await test.step('Add object',async()=>{
+    await page.getByRole('button',{name:'+ Add'}).click({timeout:3000});
+    await expect(page.getByText('3 objects')).toBeVisible({timeout:3000});
+  });
+  await test.step('Undo object add',async()=>{
+    await page.getByRole('button',{name:/Undo/}).click({timeout:3000});
+    await expect(page.getByText('2 objects')).toBeVisible({timeout:3000});
+  });
+  await test.step('Redo object add',async()=>{
+    await page.getByRole('button',{name:/Redo/}).click({timeout:3000});
+    await expect(page.getByText('3 objects')).toBeVisible({timeout:3000});
+  });
   expect(errors).toEqual([]);
 });
 
