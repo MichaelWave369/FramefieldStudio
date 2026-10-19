@@ -1,0 +1,21 @@
+{
+  "name": "framefield-studio",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Original MIT React browser 3D animation laboratory",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "vite": "6.3.5"
+  }
+}
