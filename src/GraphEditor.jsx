@@ -145,7 +145,7 @@ export default function GraphEditor({
         })}
         <line x1={graph.xFor(frame)} x2={graph.xFor(frame)}
           y1={T} y2={T+plotH} stroke="#f5a5af" strokeWidth="2" pointerEvents="none"/>
-        {start&&end&&curve!=='hold'&&[0,1].map(which=>{
+        {start&&end&&curve!=='hold'&&preset!=='linear'&&[0,1].map(which=>{
           const x0=graph.xFor(start.frame),x1=graph.xFor(end.frame);
           const y0=graph.yFor(start[group][index]),y1=graph.yFor(end[group][index]);
           const hx=x0+(x1-x0)*curve[which?2:0];
@@ -168,7 +168,7 @@ export default function GraphEditor({
       </>}
     </svg>
     <div className="graph-note">
-      Drag key dots vertically to change values. Drag golden handles to shape easing.
+      Drag key dots vertically to change values. Choose Smooth to reveal draggable gold ease handles.
       Click a segment or choose its frames above. Editing is undoable.
     </div>
   </div>;
