@@ -46,6 +46,15 @@ The public URL is a **target**, not a claim that a deployment has already succee
 
 Save JSON from the toolbar. Nothing is automatically uploaded or saved remotely. Projects are validated at import, with a maximum of 100 shapes, up to 600 keyframes per object and frames 0–600.
 
+## Viewport movement and undo/redo (v0.2)
+
+- In **Move** mode (keyboard `G`), select an object and drag an X (red), Y (green), or Z (blue) axis handle in the viewport.
+- Hold **Alt** while dragging to snap world motion to 0.25-unit increments.
+- Choose **Orbit** (keyboard `O`) to temporarily hide move handles; left-drag orbits as usual in either tool.
+- **Undo**: Ctrl+Z or Cmd+Z. **Redo**: Ctrl+Shift+Z/Cmd+Shift+Z (also Ctrl+Y).
+- Each complete gizmo drag is exactly one undo step. History is in-memory and capped to 70 edits; it is not part of exported JSON projects.
+- Changing object properties, adding keyframes, and importing projects are also undoable.
+
 ## Roadmap
 
 - Undo/redo, vertex/edge/face mesh editing, draggable transform gizmos

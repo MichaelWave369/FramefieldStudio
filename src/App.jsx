@@ -1,6 +1,8 @@
 import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject} from './scene.js';
 import {render} from './renderer.js';
+import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
+import {hitMoveHandle,axisDragWorldDelta} from './gizmo.js';
 import './style.css';
 
 const icon={box:'⬡',sphere:'◉',pyramid:'△',cylinder:'▥',torus:'◎'};
@@ -14,20 +16,27 @@ function saveBlob(blob,name){
 const filename=name=>(name||'framefield').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-|-$/g,'')||'framefield';
 
 export default function App(){
-  const [scene,setScene]=useState(demoScene);
+  const [history,setHistory]=useState(()=>initialHistory(demoScene()));
+  const scene=history.present;
+  const setScene=change=>setHistory(h=>commitHistory(h,change));
+  const amendScene=change=>setHistory(h=>amendHistory(h,change));
+  const undo=()=>{setPlaying(false);setHistory(undoHistory);setStatus('Undo');};
+  const redo=()=>{setPlaying(false);setHistory(redoHistory);setStatus('Redo');};
   const [selectedId,setSelectedId]=useState(()=>null);
   const [frame,setFrame]=useState(0);
   const [playing,setPlaying]=useState(false);
   const [camera,setCamera]=useState(cameraInitial);
   const [shape,setShape]=useState('box');
+  const [tool,setTool]=useState('move');
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
-  const canvasRef=useRef(null),picker=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
+  const canvasRef=useRef(null),picker=useRef([]),handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
   const selected=useMemo(()=>scene.objects.find(o=>o.id===selectedId)||null,[scene,selectedId]);
   const selectedPose=selected?atFrame(selected,frame):null;
   const [sizeVersion,setSizeVersion]=useState(0);
   useEffect(()=>{
-    if(!selectedId && scene.objects.length)setSelectedId(scene.objects[0].id);
+    if(selectedId && scene.objects.some(o=>o.id===selectedId))return;
+    setSelectedId(scene.objects[0]?.id||null);
   },[selectedId,scene.objects]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
@@ -35,8 +44,10 @@ export default function App(){
     obs.observe(cv);return ()=>obs.disconnect();
   },[]);
   useEffect(()=>{
-    picker.current=render(canvasRef.current,scene,frame,camera,selectedId);
-  },[scene,frame,camera,selectedId,sizeVersion]);
+    const view=render(canvasRef.current,scene,frame,camera,selectedId,tool);
+    picker.current=view.pick;
+    handles.current=view.handles;
+  },[scene,frame,camera,selectedId,tool,sizeVersion]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
     const handle=e=>{e.preventDefault();setCamera(c=>({...c,distance:clamp(c.distance*Math.exp(e.deltaY*.001),2,70)}));};
@@ -57,9 +68,20 @@ export default function App(){
   },[playing,scene.fps,scene.duration]);
   useEffect(()=>{
     const handle=e=>{
-      if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)||e.altKey||e.ctrlKey||e.metaKey)return;
+      if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)||
+        document.activeElement?.isContentEditable)return;
+      const mod=e.ctrlKey||e.metaKey;
+      if(mod && !e.altKey && e.key.toLowerCase()==='z'){
+        e.preventDefault();if(e.shiftKey)redo();else undo();return;
+      }
+      if(mod && !e.altKey && e.key.toLowerCase()==='y'){
+        e.preventDefault();redo();return;
+      }
+      if(e.altKey||mod)return;
       if(e.code==='Space'){e.preventDefault();setPlaying(p=>!p);}
       if(e.key.toLowerCase()==='k' && selectedId){e.preventDefault();addKey();}
+      if(e.key.toLowerCase()==='g'){setTool('move');}
+      if(e.key.toLowerCase()==='o'){setTool('orbit');}
       if(e.key==='Delete' && selectedId){e.preventDefault();deleteSelected();}
     };
     window.addEventListener('keydown',handle);return ()=>window.removeEventListener('keydown',handle);
@@ -150,11 +172,32 @@ export default function App(){
   },[frame,playing,recording,scene.duration]);
   function pointerDown(e){
     if(e.button>2)return;
+    const rect=e.currentTarget.getBoundingClientRect();
+    const handle=tool==='move' && e.button===0 && !e.shiftKey && selected
+      ?hitMoveHandle(handles.current,e.clientX-rect.left,e.clientY-rect.top):null;
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current={x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,pan:e.shiftKey||e.button===2};
+    if(handle){
+      setPlaying(false);
+      drag.current={kind:'axis',handle,sx:e.clientX,sy:e.clientY,
+        original:atFrame(selected,frame),objectId:selected.id,at:frame,changed:false};
+    }else{
+      drag.current={kind:'camera',x:e.clientX,y:e.clientY,
+        sx:e.clientX,sy:e.clientY,pan:e.shiftKey||e.button===2};
+    }
   }
   function pointerMove(e){
     const d=drag.current;if(!d)return;
+    if(d.kind==='axis'){
+      const amount=axisDragWorldDelta(d.handle,e.clientX-d.sx,e.clientY-d.sy,e.altKey);
+      if(!d.changed && Math.abs(amount)<.001)return;
+      const nextPose={...d.original,position:[...d.original.position]};
+      nextPose.position[d.handle.index]=clamp(nextPose.position[d.handle.index]+amount,-10000,10000);
+      const update=s=>({...s,objects:s.objects.map(o=>o.id===d.objectId
+        ?putKey(o,d.at,nextPose):o)});
+      if(!d.changed){setScene(update);d.changed=true;}
+      else amendScene(update);
+      return;
+    }
     const dx=e.clientX-d.x,dy=e.clientY-d.y;d.x=e.clientX;d.y=e.clientY;
     setCamera(c=>{
       if(!d.pan)return {...c,yaw:c.yaw-dx*.008,pitch:clamp(c.pitch+dy*.008,-1.42,1.42)};
@@ -167,6 +210,10 @@ export default function App(){
   }
   function pointerUp(e){
     const d=drag.current;if(!d)return;
+    if(d.kind==='axis'){
+      if(d.changed)setStatus('Moved '+d.handle.name+' · one undo step · F'+d.at);
+      drag.current=null;return;
+    }
     if(Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<5){
       const r=e.currentTarget.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
       const hit=picker.current.reduce((best,p)=>{
@@ -190,11 +237,13 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.1</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.2</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
       <div className="top-actions">
+        <button className="ghost" disabled={!history.past.length} onClick={undo} title="Undo · Ctrl/Cmd+Z">↶ Undo</button>
+        <button className="ghost" disabled={!history.future.length} onClick={redo} title="Redo · Ctrl/Cmd+Shift+Z">↷ Redo</button>
         <button className="ghost" onClick={newProject}>New</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
@@ -227,20 +276,29 @@ export default function App(){
         <div className="hints"><div className="section-heading">VIEW CONTROLS</div>
           <p><kbd>Drag</kbd> Orbit camera</p><p><kbd>Shift</kbd> + <kbd>Drag</kbd> Pan</p>
           <p><kbd>Scroll</kbd> Zoom</p><p><kbd>Click</kbd> Select object</p>
+          <p><kbd>G</kbd> Move tool · drag an axis</p>
+          <p><kbd>O</kbd> Orbit tool</p><p><kbd>Alt</kbd> + axis drag Snaps 0.25m</p>
+          <p><kbd>Ctrl</kbd> + <kbd>Z</kbd> Undo</p>
           <p><kbd>Space</kbd> Play / pause</p><p><kbd>K</kbd> Add keyframe</p>
         </div>
       </aside>
       <section className="viewport-panel" aria-label="3D viewport">
         <div className="view-top"><div><span className="view-tag">PERSPECTIVE</span>
           <span>World / Frame {String(frame).padStart(3,'0')}</span></div>
-          <button className="ghost small" onClick={()=>setCamera(cameraInitial())}>Reset camera</button>
+          <div className="viewport-actions" role="toolbar" aria-label="Viewport tools">
+            <button className={'tool-button '+(tool==='move'?'chosen':'')} aria-pressed={tool==='move'}
+              onClick={()=>setTool('move')} title="Move selected object by dragging X, Y or Z handle · G">✥ Move</button>
+            <button className={'tool-button '+(tool==='orbit'?'chosen':'')} aria-pressed={tool==='orbit'}
+              onClick={()=>setTool('orbit')} title="Orbit camera without move handles · O">◎ Orbit</button>
+            <button className="ghost small" onClick={()=>setCamera(cameraInitial())}>Reset camera</button>
+          </div>
         </div>
         <canvas ref={canvasRef} aria-label="Interactive 3D viewport"
           onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
           onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>
         <div className="axis-compass" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
         <div className="view-bottom"><span>Original software 3D renderer · no external assets</span>
-          <span>Orbit · {camera.distance.toFixed(1)}m</span></div>
+          <span>{tool==='move'?'Drag X / Y / Z handles to move · Alt snaps':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
         <div className="section-heading">INSPECTOR <span>F{String(frame).padStart(3,'0')}</span></div>
