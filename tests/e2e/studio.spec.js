@@ -422,3 +422,78 @@ test('invalid face-operation input is caught without crashing or modifying geome
   await expect(page.getByText(/Mesh operation unavailable/)).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('subdivision modifier updates rendered geometry without touching original mesh',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const before=await page.locator('canvas').evaluate(node=>node.toDataURL());
+  const counts=page.getByTestId('modifier-mesh-counts');
+  await expect(counts).toContainText('Source: 8V / 6F');
+  await page.getByRole('button',{name:'+ Subdivision'}).click();
+  await expect(counts).toContainText('Preview: 26V / 24F');
+  await expect(counts).toContainText('Source: 8V / 6F');
+  const after=await page.locator('canvas').evaluate(node=>node.toDataURL());
+  expect(after).not.toBe(before);
+  await page.getByRole('checkbox',{name:'Modifier 1 enabled'}).uncheck();
+  await expect(counts).toContainText('Preview: 8V / 6F');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('checkbox',{name:'Modifier 1 enabled'})).toBeChecked();
+  await expect(counts).toContainText('Preview: 26V / 24F');
+  await page.getByRole('button',{name:/Redo/}).click();
+  await expect(counts).toContainText('Preview: 8V / 6F');
+  expect(errors).toEqual([]);
+});
+
+test('mirror modifier welds the center seam; stack order and toggle persist in JSON',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const counts=page.getByTestId('modifier-mesh-counts');
+  await page.getByRole('button',{name:'+ Mirror'}).click();
+  await expect(counts).toContainText('Preview: 12V / 10F');
+  await page.getByRole('combobox',{name:'Mirror 1 axis'}).selectOption('2');
+  await page.getByRole('button',{name:'+ Subdivision'}).click();
+  await expect(counts).toContainText('Preview: 42V / 40F');
+  await page.getByRole('button',{name:'Move modifier 2 up'}).click();
+  await expect(page.getByRole('combobox',{name:'Subdivision 1 levels'})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Mirror 2 axis'})).toHaveValue('2');
+  await page.getByRole('checkbox',{name:'Modifier 2 enabled'}).uncheck();
+  await expect(counts).toContainText('Preview: 26V / 24F');
+  const save=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Save JSON'}).click();
+  const download=await save;
+  const fs=await import('node:fs/promises');
+  const original=JSON.parse(await fs.readFile(await download.path(),'utf8'));
+  expect(original.objects[0].geometry).toBeUndefined();
+  expect(original.objects[0].modifiers).toEqual([
+    {type:'subdivide',enabled:true,levels:1},{type:'mirror',enabled:false,axis:2}
+  ]);
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name:'modifier-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(original))
+  });
+  await expect(page.getByRole('combobox',{name:'Mirror 2 axis'})).toHaveValue('2');
+  await expect(page.getByRole('checkbox',{name:'Modifier 2 enabled'})).not.toBeChecked();
+  await expect(counts).toContainText('Preview: 26V / 24F');
+  expect(errors).toEqual([]);
+});
+
+test('modifiers are included in clean camera PNG while the source remains editable',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const snapshot=async()=>{
+    const event=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Render PNG'}).click();
+    const item=await event;
+    return (await import('node:fs/promises')).readFile(await item.path());
+  };
+  const plain=await snapshot();
+  await page.getByRole('button',{name:'+ Subdivision'}).click();
+  const smooth=await snapshot();
+  expect(smooth.equals(plain)).toBe(false);
+  await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+  await expect(page.getByText('8 vertices',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('modifier-mesh-counts')).toContainText('Preview: 26V / 24F');
+  await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+  await expect(page.getByRole('button',{name:'Extrude Face'})).toBeVisible();
+  expect(errors).toEqual([]);
+});

@@ -2,6 +2,7 @@
 import {sanitizeMaterial,sanitizeLighting,DEFAULT_LIGHTING,DEFAULT_MATERIAL} from './lighting.js';
 import {sanitizeShotCamera,sanitizeRender} from './shot.js';
 import {validateMesh} from './mesh.js';
+import {sanitizeModifiers,evaluateModifiers} from './modifiers.js';
 export const TYPES = ['box','sphere','pyramid','cylinder','torus'];
 export const PALETTE = ['#9991ff','#62d6ca','#f6ad73','#e994d4','#73b9eb'];
 export const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
@@ -133,9 +134,13 @@ export function validateProject(raw) {
       unique.set(frame,{frame,position:vec(k.position,[0,0,0]),rotation:vec(k.rotation,[0,0,0]),
         scale:vec(k.scale,[1,1,1]),...(Object.keys(curves).length?{curves}:{})});
     }
+    // Reject project files whose modifiers exceed the safe browser preview budget.
+    const geometry=o.geometry!==undefined?validateMesh(o.geometry):undefined;
+    const modifiers=sanitizeModifiers(o.modifiers);
+    if(modifiers.some(mod=>mod.enabled))evaluateModifiers({type:o.type,geometry,modifiers});
     return {id:id(),type:o.type,name:String(o.name||'Shape '+(i+1)).slice(0,65),
       color:/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#9991ff',material:sanitizeMaterial(o.material),visible:o.visible!==false,
-      ...(o.geometry!==undefined?{geometry:validateMesh(o.geometry)}:{}),
+      ...(geometry?{geometry}:{}),...(modifiers.length?{modifiers}:{}),
       keyframes:[...unique.values()].sort((a,b)=>a.frame-b.frame)};
   });
   return {version:1,name:String(raw.name||'Imported Scene').slice(0,80),
