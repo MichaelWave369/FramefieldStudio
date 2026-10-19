@@ -4,12 +4,14 @@ import {GUIDE_STEPS,getGuideStep} from './creatorGuide.js';
 export default function QuickStartGuide({onClose,onJump}){
   const [stepIndex,setStepIndex]=useState(0);
   const closeRef=useRef(null);
+  const closeCallback=useRef(onClose);
+  closeCallback.current=onClose;
   useEffect(()=>{
     closeRef.current?.focus();
-    const key=e=>{if(e.key==='Escape'){e.preventDefault();onClose();}};
+    const key=e=>{if(e.key==='Escape'){e.preventDefault();closeCallback.current();}};
     window.addEventListener('keydown',key);
     return ()=>window.removeEventListener('keydown',key);
-  },[onClose]);
+  },[]);
   const step=getGuideStep(stepIndex);
   return <div className="creator-overlay">
     <section className="creator-dialog guide-dialog" role="dialog"
