@@ -16,7 +16,7 @@ export function RecoveryPrompt({draft,onRestore,onDiscard,onBackup}){
       </div>}
       <div className="creator-actions">
         {!draft.error&&<button className="primary" onClick={onRestore}>Restore saved scene</button>}
-        <button className="ghost" onClick={onBackup}>Download draft backup</button>
+        {draft.raw&&<button className="ghost" onClick={onBackup}>Download draft backup</button>}
         <button className="ghost danger" onClick={onDiscard}>Discard local draft</button>
       </div>
       <p className="creator-footnote">Stored only in this browser origin. For durable backups, download project JSON.</p>

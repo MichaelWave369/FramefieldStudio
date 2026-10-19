@@ -17,7 +17,7 @@ export function parseRecovery(raw){
 }
 export function readRecovery(storage){
   try{return parseRecovery(storage.getItem(AUTOSAVE_KEY));}
-  catch(error){return {error:'Local browser storage unavailable: '+error.message};}
+  catch{return null;} // Disabled storage must not block the editor on startup.
 }
 export function storeDraft(storage,project,stamp=Date.now()){
   const envelope=JSON.stringify({kind:'framefield-local-draft',version:1,

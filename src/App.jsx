@@ -32,7 +32,7 @@ const filename=name=>(name||'framefield').toLowerCase().replace(/[^a-z0-9_-]+/g,
 
 export default function App(){
   const [history,setHistory]=useState(()=>initialHistory(demoScene()));
-  const [recovery,setRecovery]=useState(()=>readRecovery(window.localStorage));
+  const [recovery,setRecovery]=useState(()=>{try{return readRecovery(window.localStorage);}catch{return null;}});
   const [starterOpen,setStarterOpen]=useState(false);
   const [autosaveEnabled,setAutosaveEnabled]=useState(false);
   const [autosaveState,setAutosaveState]=useState({kind:'idle'});
