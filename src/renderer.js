@@ -64,7 +64,7 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move',options=
         camera.target[2]+Math.cos(camera.yaw)*Math.cos(camera.pitch)*camera.distance];
       const color=shadeFace(object.color,object.material,scene.lighting||DEFAULT_LIGHTING,
         n,faceCenter,eye);
-      polys.push({proj,color,
+      polys.push({id:object.id,proj,color,
         depth:proj.reduce((s,x)=>s+x.depth,0)/proj.length,
         selected:object.id===selectedId});
     }
@@ -114,5 +114,5 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move',options=
   if(helpers&&tool==='rotate')drawRotateHandles(ctx,handles);
   if(helpers&&tool==='scale')drawScaleHandles(ctx,handles);
   ctx.restore();
-  return {pick,handles,components};
+  return {pick,handles,components,faces:helpers?polys.map(f=>({id:f.id,points:f.proj,depth:f.depth})):[]};
 }

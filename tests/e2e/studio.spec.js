@@ -497,3 +497,73 @@ test('modifiers are included in clean camera PNG while the source remains editab
   await expect(page.getByRole('button',{name:'Extrude Face'})).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('starter gallery builds a ready-to-edit scene with Undo back to the previous project',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Starter Scenes'}).click();
+  const dialog=page.getByRole('dialog',{name:'Starter scenes'});
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button',{name:'Create Turntable'}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Turntable Study');
+  await expect(page.getByTestId('modifier-mesh-counts')).toContainText('Preview: 26V / 24F');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('First Motion');
+  expect(errors).toEqual([]);
+});
+
+test('autosave offers explicit recovery after refresh, preserving creator edits',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('textbox',{name:'Project name'}).fill('Creator Recovery Study');
+  await expect(page.locator('.local-save-state')).toHaveText('Saved locally');
+  await page.reload();
+  const prompt=page.getByRole('dialog',{name:'Restore local autosave'});
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText('Creator Recovery Study');
+  await prompt.getByRole('button',{name:'Restore saved scene'}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Creator Recovery Study');
+  await expect(prompt).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('discarding recovery does not silently rewrite a draft or change the starter scene',async({page})=>{
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('textbox',{name:'Project name'}).fill('Throwaway Draft');
+  await expect(page.locator('.local-save-state')).toHaveText('Saved locally');
+  await page.reload();
+  const recovery=page.getByRole('dialog',{name:'Restore local autosave'});
+  await recovery.getByRole('button',{name:'Discard local draft'}).click();
+  await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('First Motion');
+  await page.reload();
+  await expect(page.getByRole('dialog',{name:'Restore local autosave'})).toHaveCount(0);
+});
+
+test('corrupt local draft is surfaced without executing or silently replacing it',async({page})=>{
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.evaluate(()=>localStorage.setItem('framefield-studio:local-draft:v1','{incomplete'));
+  await page.reload();
+  const prompt=page.getByRole('dialog',{name:'Restore local autosave'});
+  await expect(prompt).toContainText('unreadable draft');
+  const event=page.waitForEvent('download');
+  await prompt.getByRole('button',{name:'Download draft backup'}).click();
+  const file=await event;
+  expect(file.suggestedFilename()).toBe('framefield-local-draft-backup.json');
+  await prompt.getByRole('button',{name:'Discard local draft'}).click();
+  await expect(prompt).toHaveCount(0);
+});
+
+test('surface picking selects a visible object while retaining keyboard orbit and gizmos',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const canvas=page.getByRole('img',{name:'Interactive 3D viewport'}).or(page.locator('canvas'));
+  const box=await page.locator('canvas').boundingBox();
+  const {makeProject}=await import('../../src/projection.js');
+  const projector=makeProject({yaw:.66,pitch:.32,distance:9.3,target:[0,0,0]},box.width,box.height);
+  const sphereCenter=projector([1.5,-.35,0]);
+  await page.mouse.click(box.x+sphereCenter.x,box.y+sphereCenter.y);
+  await expect(page.getByRole('option',{name:/Floating Sphere/})).toHaveAttribute('aria-selected','true');
+  await page.keyboard.press('g');
+  await expect(page.getByRole('button',{name:/Move/})).toHaveAttribute('aria-pressed','true');
+  expect(errors).toEqual([]);
+});
