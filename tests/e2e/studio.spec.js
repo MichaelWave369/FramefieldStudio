@@ -10,7 +10,7 @@ test('published-path React studio boots, renders UI and allows editing', async (
   await expect(page.getByText('FRAMEFIELD', {exact:true})).toBeVisible();
   await expect(page.getByRole('option', {name:/Orbit Cube/})).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.getByText('DOPE SHEET')).toBeVisible();
+  await expect(page.getByText('DOPE SHEET',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'+ Add'}).click();
   await expect(page.getByText('3 objects')).toBeVisible();
   await expect(page.getByText('3 objects')).toBeVisible();
