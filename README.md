@@ -73,6 +73,15 @@ Switch from **Dope Sheet** to **Graph Editor** in the animation timeline. Choose
 - Save/open JSON includes a small optional `curves` map on source keyframes. v0.1–v0.3 projects with no `curves` continue to play **linear** by default.
 - Bezier control points stay within 0–1 on both axes to avoid unwanted overshoot; true overshoot and independent key time retiming are future work.
 
+## Materials & Lighting Studio (v0.5)
+
+Use the right inspector's **Object** tab to edit surface color, pick Matte/Satin/Gloss/Metal presets, or directly adjust Roughness, Metalness and Emission.
+Use **Lighting** to control ambient strength and two colored, directional lights (Key and Fill). Both lights have enable toggles, intensity, color, and world-direction vectors.
+- Preview lighting is computed by our own dependency-free per-polygon Canvas2D shader, approximating ambient/directional diffuse lighting and simple highlights. **Not physically based rendering** and **not** real reflections, cast shadows, environment maps, or ray tracing.
+- The material is stored per object. Lights live on the project scene and apply to all its visible objects.
+- All edits are undoable and change the on-screen render immediately, including PNG and browser WebM.
+- The JSON format retains existing curves and keyframes; absent `material` and `lighting` fields load with safe defaults. Imports sanitize values, colors and light directions.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators

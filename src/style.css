@@ -39,3 +39,27 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .graph-empty{padding:32px;color:#9fb0ca}
 @media(max-width:1100px){.timeline-section.graph-open{height:370px}.timeline-bar{gap:7px}.graph-controls{gap:8px}.graph-controls select{max-width:115px}.graph-readout{display:none}}
 @media(max-height:760px){.timeline-section.graph-open{height:300px}.graph-note{display:none}}
+
+/* v0.5 Materials & Lighting Studio */
+.inspector-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:15px}
+.inspector-tabs button{background:#152238;color:#aebddd;font-size:12px;padding:8px 5px}
+.inspector-tabs button[aria-pressed="true"]{background:#514ea8;border-color:#8480e5;color:#fff}
+.material-editor{border-top:1px solid #29394e;margin-top:18px;padding-top:3px}
+.material-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.material-preset{font-size:11px;padding:7px 3px}
+.material-preset.chosen{background:#4b5095;border-color:#9a91ea}
+.material-numbers{margin-top:11px;display:grid;gap:8px}
+.material-number{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#b2c2d9;font-size:11px}
+.material-number input{width:77px;min-width:0;font-size:12px;text-align:right;padding:6px}
+.material-help{color:#8295b0;font-size:11px;line-height:1.6;margin:12px 0}
+.light-cue{height:16px;border-radius:4px;margin:12px 0 22px;opacity:.8;border:1px solid #56637d}
+.light-settings{margin:18px 0 14px;border:1px solid #2c405e;border-radius:9px;padding:12px;display:grid;gap:10px;min-width:0}
+.light-settings legend{color:#c5d5ec;font-size:11px;font-weight:800;letter-spacing:1px;padding:0 6px}
+.light-enabled,.light-color{display:flex;align-items:center;justify-content:space-between;gap:7px;color:#bac8dc;font-size:11px}
+.light-enabled{justify-content:flex-start}
+.light-enabled input{accent-color:#8b82f1}
+.light-color input{height:30px;width:57px;padding:2px}
+.direction-label{font-size:10px;font-weight:700;color:#8295af}
+.light-vector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.light-vector label{display:flex;flex-direction:column;gap:4px;color:#a8badd;font-size:11px}
+.light-vector input{width:100%;font-size:11px;text-align:center;padding:5px 2px}

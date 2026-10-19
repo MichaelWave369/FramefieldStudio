@@ -160,3 +160,52 @@ test('curve handles can be dragged into a custom easing shape',async({page})=>{
   await expect(preset).toHaveValue('smooth');
   expect(errors).toEqual([]);
 });
+
+test('materials and lighting controls change the rendered viewport and support Undo',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const viewport=page.locator('canvas');
+  const before=await viewport.evaluate(c=>c.toDataURL('image/png'));
+  await page.getByRole('button',{name:'Gloss',exact:true}).click();
+  await expect(page.getByRole('spinbutton',{name:'Roughness'})).toHaveValue('0.12');
+  const shiny=await viewport.evaluate(c=>c.toDataURL('image/png'));
+  expect(shiny).not.toEqual(before);
+  await page.getByRole('button',{name:'Lighting',exact:true}).click();
+  await expect(page.getByRole('spinbutton',{name:'Ambient strength'})).toBeVisible();
+  await page.getByRole('checkbox',{name:'Key light enabled'}).uncheck();
+  await page.getByRole('checkbox',{name:'Fill light enabled'}).uncheck();
+  await page.getByRole('spinbutton',{name:'Ambient strength'}).fill('0');
+  const dark=await viewport.evaluate(c=>c.toDataURL('image/png'));
+  expect(dark).not.toEqual(shiny);
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('spinbutton',{name:'Ambient strength'})).toHaveValue('0.48');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('checkbox',{name:'Fill light enabled'})).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('material and scene-light settings survive a downloaded project and reload',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Metal',exact:true}).click();
+  await page.getByRole('button',{name:'Lighting',exact:true}).click();
+  await page.getByRole('spinbutton',{name:'Ambient strength'}).fill('0.26');
+  await page.getByRole('spinbutton',{name:'Key light intensity'}).fill('1.4');
+  const event=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Save JSON'}).click();
+  const download=await event;
+  const fs=await import('node:fs/promises');
+  const original=JSON.parse(await fs.readFile(await download.path(),'utf8'));
+  expect(original.lighting.ambient).toBe(.26);
+  expect(original.lighting.key.intensity).toBe(1.4);
+  expect(original.objects[0].material.metalness).toBe(.92);
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name:'studio-round-trip.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify(original))
+  });
+  await expect(page.getByRole('spinbutton',{name:'Ambient strength'})).toHaveValue('0.26');
+  await page.getByRole('button',{name:'Object',exact:true}).click();
+  await expect(page.getByRole('spinbutton',{name:'Metalness'})).toHaveValue('0.92');
+  expect(errors).toEqual([]);
+});
