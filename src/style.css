@@ -101,3 +101,15 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .mesh-coordinates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .mesh-coordinates label{font-size:10px;display:flex;flex-direction:column;gap:5px;color:#92b2da}
 .mesh-coordinates input{width:100%;font-size:11px;padding:6px 3px;text-align:center}
+
+/* Framefield v0.8: original polygon topology operators */
+.topology-tools{border:1px solid #425377;background:#142136;border-radius:9px;
+  padding:10px;margin:13px 0;display:grid;gap:7px}
+.topology-tools .transform-title{margin:2px 0 4px}
+.topology-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end}
+.topology-row label{display:flex;flex-direction:column;gap:4px;font-size:10px;
+  color:#aebfdc;font-weight:700}
+.topology-row input{width:100%;padding:7px 6px;text-align:center;font-size:12px}
+.topology-action{font-size:11px;background:#4b4a89;border-color:#8385c8;
+  color:#fff;padding:8px 3px;white-space:nowrap}
+.topology-action:hover{background:#6461b0}

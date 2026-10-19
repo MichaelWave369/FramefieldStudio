@@ -4,6 +4,7 @@ import GraphEditor from './GraphEditor.jsx';
 import {MaterialEditor,LightingEditor} from './MaterialLighting.jsx';
 import RenderStudio from './RenderStudio.jsx';
 import MeshWorkshop from './MeshWorkshop.jsx';
+import {operateFace} from './faceOps.js';
 import {cloneMesh,primitiveMesh,moveMeshComponent,dragToLocal,pickComponent} from './mesh.js';
 import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,frameRange} from './shot.js';
 import {makeZip} from './zip.js';
@@ -168,6 +169,19 @@ export default function App(){
       ?{...o,geometry:moveMeshComponent(o.geometry,kind,index,delta)}:o)});
     if(amend)amendScene(update);else setScene(update);
     setStatus('Edited mesh '+kind+' '+(index+1));
+  }
+  function applyFaceOperation(operation,amount){
+    if(!selected?.geometry||meshMode!=='face')return;
+    try{
+      // Validate and calculate before updating React state so an invalid operation
+      // cannot throw from inside React's render/update phase.
+      const result=operateFace(selected.geometry,meshSelection,operation,Number(amount));
+      const id=selectedId;
+      setScene(s=>({...s,objects:s.objects.map(o=>o.id===id?{...o,geometry:result}:o)}));
+      setPlaying(false);
+      setStatus(operation[0].toUpperCase()+operation.slice(1)+' face '+(meshSelection+1)+
+        ' · '+result.vertices.length+' vertices / '+result.faces.length+' faces · Undo available');
+    }catch(error){setStatus('Mesh operation unavailable: '+error.message);}
   }
   function editVector(group,i,value){
     const num=Number(value);if(!Number.isFinite(num))return;
@@ -429,7 +443,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.7</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.8</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -534,7 +548,8 @@ export default function App(){
           </div>
           <MeshWorkshop object={selected} mode={meshMode} selectedComponent={meshSelection}
             onConvert={convertToMesh} onModeChange={setEditMode}
-            onSelectionChange={setMeshSelection} onMove={moveSelectedMesh}/>
+            onSelectionChange={setMeshSelection} onMove={moveSelectedMesh}
+            onOperate={applyFaceOperation}/>
           <MaterialEditor material={selected.material} onChange={updateMaterial}/>
           {['position','rotation','scale'].map(group=><div key={group}>
             <div className="transform-title">{group.toUpperCase()} <span>{group==='position'?'METERS':group==='rotation'?'DEGREES':'FACTOR'}</span></div>
