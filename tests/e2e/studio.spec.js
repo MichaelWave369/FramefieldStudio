@@ -731,3 +731,21 @@ test('opening imported JSON creates a Scene Vault checkpoint of the preceding pr
   await expect(page.getByRole('dialog',{name:'Scene Vault'})).toContainText('Before opening JSON');
   await expect(page.getByRole('dialog',{name:'Scene Vault'})).toContainText('Before Import');
 });
+
+test('wrapped header stays above workspace and toolbar actions remain clickable',async({page})=>{
+  await page.setViewportSize({width:1000,height:800});
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  const bounds=await page.evaluate(()=>{
+    const header=document.querySelector('.topbar').getBoundingClientRect();
+    const workspace=document.querySelector('.workspace').getBoundingClientRect();
+    return {headerBottom:header.bottom,workspaceTop:workspace.top,height:header.height};
+  });
+  expect(bounds.workspaceTop).toBeGreaterThanOrEqual(bounds.headerBottom-.5);
+  expect(bounds.height).toBeGreaterThanOrEqual(75);
+  await page.getByRole('button',{name:'Starter Scenes'}).click();
+  await expect(page.getByRole('dialog',{name:'Starter scenes'})).toBeVisible();
+  await page.getByRole('dialog',{name:'Starter scenes'})
+    .getByRole('button',{name:'Close starter scenes'}).click();
+  await page.getByRole('button',{name:'Scene Vault'}).click();
+  await expect(page.getByRole('dialog',{name:'Scene Vault'})).toBeVisible();
+});
