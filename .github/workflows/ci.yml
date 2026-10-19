@@ -24,4 +24,4 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Browser runtime smoke test
-        run: npx playwright test
+        run: npx playwright test --max-failures=1

@@ -185,3 +185,30 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .starter-card-actions button{font-size:11px;padding:8px 10px;margin:7px 0 0}
 @media(max-width:620px){.guide-bottom{align-items:start;flex-direction:column}
   .guide-bottom .primary{width:100%}}
+
+/* Framefield v1.0 candidate: user-controlled browser-local Scene Vault */
+.vault-dialog{width:min(100%,730px)}
+.vault-records{display:flex;flex-direction:column;gap:9px;margin:17px 0}
+.vault-record{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:13px 12px;border:1px solid #415775;border-radius:9px;background:#1a2b43}
+.vault-record>div:first-child{display:flex;flex-direction:column;gap:4px;min-width:0}
+.vault-record strong{color:#f0f4ff;font-size:13px;overflow-wrap:anywhere}
+.vault-record small{font-size:10px;color:#acc1df}
+.vault-record-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.vault-record-actions button{font-size:10px;padding:7px 9px}
+.vault-error{padding:10px 12px;border:1px solid #d18475;background:#4a2429;
+ color:#ffe4dc;border-radius:7px;overflow-wrap:anywhere}
+@media(max-width:710px){.vault-record{align-items:stretch;flex-direction:column}
+  .vault-record-actions{justify-content:flex-start}}
+
+/* Release hardening: wrapped toolbar rows must occupy real layout height.
+   Without this, the scene workspace overlays the next row and blocks clicks. */
+.topbar{
+  height:auto;
+  min-height:75px;
+  flex:0 0 auto;
+  position:relative;
+  z-index:10;
+  align-content:center;
+  row-gap:9px;
+}

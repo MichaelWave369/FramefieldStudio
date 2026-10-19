@@ -17,6 +17,11 @@ until all automated checks and this manual walkthrough have passed.
 - [ ] New project, rename, create/copy/delete objects and Undo/Redo.
 - [ ] Load all four starter scenes; verify animation and their camera settings.
 - [ ] Change a name or material, observe local save success, refresh and recover.
+- [ ] New, Open JSON and starter creation add a Scene Vault checkpoint.
+- [ ] Restore and export a vault checkpoint and check source geometry, modifiers,
+      animation and lighting survive.
+- [ ] Simulate quota denial; scene replacement must stop and offer JSON backup.
+- [ ] Explicitly confirm Scene Vault deletion; avoid silent data loss.
 - [ ] Refresh with a draft, discard it, refresh again, confirm no recovery prompt.
 - [ ] Test corrupt draft backup and recoverable storage-quota errors.
 - [ ] Download JSON and reopen after reload or in another supported browser.

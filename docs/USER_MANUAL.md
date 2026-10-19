@@ -141,6 +141,26 @@ There is no remote sync. The status indicator reports when the browser
 has confirmed a draft write, not when a portable backup has been created.
 Use Save JSON regularly.
 
+## Scene Vault: extra protection when changing projects
+
+The **Scene Vault** button opens your local checkpoint history. Unlike the
+most recent autosave draft, vault checkpoints retain up to **five prior scenes**.
+
+The studio automatically saves a checkpoint immediately before New Project,
+Open JSON, or Create Starter Scene. Restoring from the Vault also protects the
+current project before loading the older one. Each checkpoint has its project
+name, timestamp and reason, plus controls for **Restore**, **Download JSON**
+and **Delete** (which requires a second confirmation).
+
+Create a manual checkpoint any time with **Save current checkpoint**.
+To move a saved project to another computer, use **Download JSON** and keep the
+resulting file. Vault entries stay on the current browser/device only.
+
+**Storage unavailable?** Scene replacement pauses. You can download the
+current JSON, cancel, or knowingly proceed without the local checkpoint.
+Do not assume backups exist when your browser reports a storage error.
+The Vault has strict memory limits and rotates old checkpoints.
+
 ## 7. Known limitations
 
 - Canvas2D software rendering, approximate polygon shading; no GPU PBR,

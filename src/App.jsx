@@ -7,6 +7,8 @@ import MeshWorkshop from './MeshWorkshop.jsx';
 import ModifierStack from './ModifierStack.jsx';
 import {RecoveryPrompt,StarterPicker} from './CreatorDialogs.jsx';
 import QuickStartGuide from './QuickStartGuide.jsx';
+import {SceneVaultDialog,ReplacementWarning} from './SceneVaultDialog.jsx';
+import {addCheckpoint,readCheckpoints,restoreCheckpoint,exportCheckpoint,deleteCheckpoint} from './sceneVault.js';
 import {readRecovery,storeDraft,clearRecovery} from './recovery.js';
 import {createStarter} from './starterScenes.js';
 import {pickSurface} from './picking.js';
@@ -36,6 +38,10 @@ export default function App(){
   const [recovery,setRecovery]=useState(()=>{try{return readRecovery(window.localStorage);}catch{return null;}});
   const [starterOpen,setStarterOpen]=useState(false);
   const [guideOpen,setGuideOpen]=useState(false);
+  const [vaultOpen,setVaultOpen]=useState(false);
+  const [vaultRecords,setVaultRecords]=useState([]);
+  const [vaultError,setVaultError]=useState('');
+  const [replacementWarning,setReplacementWarning]=useState(null);
   const [autosaveEnabled,setAutosaveEnabled]=useState(false);
   const [autosaveState,setAutosaveState]=useState({kind:'idle'});
   const scene=history.present;
@@ -287,12 +293,68 @@ export default function App(){
     saveBlob(new Blob([recovery.raw],{type:'application/json'}),'framefield-local-draft-backup.json');
     setStatus('Local draft backup downloaded');
   }
+  function refreshVault(){
+    try{
+      const records=readCheckpoints(window.localStorage);
+      setVaultRecords(records);setVaultError('');
+      return records;
+    }catch(error){setVaultError(error.message);return null;}
+  }
+  function openSceneVault(){refreshVault();setVaultOpen(true);}
+  function makeCheckpoint(reason){
+    const entry=addCheckpoint(window.localStorage,scene,reason);
+    if(vaultOpen)refreshVault();
+    return entry;
+  }
+  function guardedSceneReplacement(reason,action){
+    try{
+      makeCheckpoint(reason);
+      action();
+    }catch(error){
+      // Preserve current scene. The user can download JSON, cancel or explicitly bypass.
+      setReplacementWarning({reason,error:error.message,action});
+      setStatus('Project preserved: local checkpoint unavailable. Download JSON or cancel.');
+    }
+  }
+  function saveCurrentCheckpoint(){
+    try{
+      makeCheckpoint('Manual backup');refreshVault();
+      setStatus('Local Scene Vault checkpoint saved · download JSON for a durable copy');
+    }catch(error){setVaultError(error.message);setStatus('Checkpoint failed: '+error.message);}
+  }
+  function restoreFromSceneVault(checkpointId){
+    try{
+      const restored=restoreCheckpoint(window.localStorage,checkpointId);
+      guardedSceneReplacement('Before restoring checkpoint',()=>{
+        setPlaying(false);setScene(restored);setSelectedId(restored.objects[0]?.id||null);
+        setFrame(0);setPreviewShot(false);setMeshMode('object');setMeshSelection(0);
+        setVaultOpen(false);setStatus('Scene restored from local checkpoint · Undo available');
+      });
+    }catch(error){setVaultError(error.message);setStatus('Restore failed: '+error.message);}
+  }
+  function downloadSceneVaultCheckpoint(checkpointId){
+    try{
+      const json=exportCheckpoint(window.localStorage,checkpointId);
+      const project=JSON.parse(json);
+      saveBlob(new Blob([json],{type:'application/json'}),
+        filename(project.name)+'-vault.framefield.json');
+      setStatus('Local checkpoint JSON downloaded · active scene unchanged');
+    }catch(error){setVaultError(error.message);}
+  }
+  function deleteSceneVaultCheckpoint(checkpointId){
+    try{
+      deleteCheckpoint(window.localStorage,checkpointId);
+      refreshVault();setStatus('Local checkpoint deleted');
+    }catch(error){setVaultError(error.message);}
+  }
   function loadStarter(sceneId){
     try{
       const project=createStarter(sceneId);
-      setScene(project);setPlaying(false);setFrame(0);setPreviewShot(false);
-      setSelectedId(project.objects[0]?.id||null);setMeshMode('object');setMeshSelection(0);
-      setStarterOpen(false);setStatus('Starter scene loaded: '+project.name+' · Undo available');
+      guardedSceneReplacement('Before starter scene',()=>{
+        setScene(project);setPlaying(false);setFrame(0);setPreviewShot(false);
+        setSelectedId(project.objects[0]?.id||null);setMeshMode('object');setMeshSelection(0);
+        setStarterOpen(false);setStatus('Starter scene loaded: '+project.name+' · Undo available');
+      });
     }catch(error){setStatus('Starter scene failed: '+error.message);}
   }
   function downloadStarter(starterId){
@@ -315,12 +377,15 @@ export default function App(){
     if(action==='save')save();
   }
   function newProject(){
-    if(recording)stopRecording();
-    setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
-      lighting:sanitizeLighting(DEFAULT_LIGHTING),shotCamera:sanitizeShotCamera(DEFAULT_SHOT_CAMERA),
-      renderSettings:sanitizeRender(DEFAULT_RENDER),objects:[]});
-    setPreviewShot(false);
-    setSelectedId(null);setMeshMode('object');setFrame(0);setStatus('New empty project');
+    guardedSceneReplacement('Before new project',()=>{
+      if(recording)stopRecording();
+      setPlaying(false);setScene({version:1,name:'Untitled Motion',fps:24,duration:120,
+        lighting:sanitizeLighting(DEFAULT_LIGHTING),shotCamera:sanitizeShotCamera(DEFAULT_SHOT_CAMERA),
+        renderSettings:sanitizeRender(DEFAULT_RENDER),objects:[]});
+      setPreviewShot(false);
+      setSelectedId(null);setMeshMode('object');setFrame(0);
+      setStatus('New empty project · previous scene available in Scene Vault');
+    });
   }
   function save(){
     saveBlob(new Blob([JSON.stringify(scene,null,2)],{type:'application/json'}),filename(scene.name)+'.framefield.json');
@@ -331,9 +396,12 @@ export default function App(){
     try{
       if(file.size>3000000)throw Error('File exceeds 3 MB');
       const imported=validateProject(JSON.parse(await file.text()));
-      setPlaying(false);setScene(imported);setSelectedId(imported.objects[0]?.id||null);
-      setPreviewShot(false);
-      setMeshMode('object');setFrame(0);setStatus('Opened '+imported.name);
+      guardedSceneReplacement('Before opening JSON',()=>{
+        setPlaying(false);setScene(imported);setSelectedId(imported.objects[0]?.id||null);
+        setPreviewShot(false);
+        setMeshMode('object');setFrame(0);
+        setStatus('Opened '+imported.name+' · previous scene protected in Scene Vault');
+      });
     }catch(err){setStatus('Import failed: '+err.message);}
   }
   function renderShotFrame(project,f){
@@ -533,8 +601,18 @@ export default function App(){
       onDiscard={discardDraft} onBackup={backupDraft}/>}
     {starterOpen&&!recovery&&<StarterPicker onClose={()=>setStarterOpen(false)}
       onSelect={loadStarter} onDownload={downloadStarter}/>}
-    {guideOpen&&!starterOpen&&!recovery&&<QuickStartGuide onClose={()=>setGuideOpen(false)}
+    {guideOpen&&!starterOpen&&!recovery&&!vaultOpen&&<QuickStartGuide onClose={()=>setGuideOpen(false)}
       onJump={guideJump}/>}
+    {vaultOpen&&!recovery&&<SceneVaultDialog records={vaultRecords} error={vaultError}
+      onClose={()=>setVaultOpen(false)} onSave={saveCurrentCheckpoint}
+      onRestore={restoreFromSceneVault} onDownload={downloadSceneVaultCheckpoint}
+      onDelete={deleteSceneVaultCheckpoint}/>}
+    {replacementWarning&&!recovery&&<ReplacementWarning
+      reason={replacementWarning.reason} error={replacementWarning.error}
+      onCancel={()=>{setReplacementWarning(null);setStatus('Replacement cancelled · scene unchanged');}}
+      onDownload={save}
+      onProceed={()=>{const action=replacementWarning.action;
+        setReplacementWarning(null);action();}}/>}
 
     <header className="topbar">
       <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React v1.0 candidate</small></div></div>
@@ -551,6 +629,7 @@ export default function App(){
         <button className="ghost" onClick={newProject}>New</button>
         <button className="ghost" onClick={()=>setStarterOpen(true)}>Starter Scenes</button>
         <button className="ghost" onClick={()=>setGuideOpen(true)}>Quick Start</button>
+        <button className="ghost" onClick={openSceneVault}>Scene Vault</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
