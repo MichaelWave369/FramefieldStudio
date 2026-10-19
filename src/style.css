@@ -16,3 +16,7 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .tool-button.chosen{background:#514ea8;color:#fff;border-color:#8a86f4;
   box-shadow:inset 0 0 0 1px #6766c1}
 @media(max-width:930px){.viewport-actions{gap:3px}.tool-button{padding:6px 5px}}
+
+/* Four tool modes fit on the viewport toolbar without covering the work area. */
+.viewport-actions{flex-wrap:wrap;justify-content:flex-end;max-width:70%}
+.tool-button{white-space:nowrap}

@@ -1,6 +1,6 @@
 // Self-contained Canvas 2D perspective mesh renderer. SPDX-License-Identifier: MIT
 import {atFrame,clamp} from './scene.js';
-import {makeMoveHandles,drawMoveHandles} from './gizmo.js';
+import {makeMoveHandles,drawMoveHandles,drawScaleHandles,makeRotateHandles,drawRotateHandles} from './gizmo.js';
 import {makeProject} from './projection.js';
 const TAU=Math.PI*2;
 const deg=n=>n*Math.PI/180;
@@ -99,8 +99,11 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move') {
   const selected=pick.find(p=>p.id===selectedId);
   if(selected){ctx.strokeStyle='#d4d1ff';ctx.lineWidth=1;ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.arc(selected.x,selected.y,16,0,TAU);ctx.stroke();ctx.setLineDash([]);}
-  const selectedObject=tool==='move'?scene.objects.find(o=>o.id===selectedId && o.visible):null;
-  const handles=selectedObject?makeMoveHandles(atFrame(selectedObject,frame),project):[];
-  drawMoveHandles(ctx,handles);
+  const selectedObject=tool!=='orbit'?scene.objects.find(o=>o.id===selectedId && o.visible):null;
+  const pose=selectedObject?atFrame(selectedObject,frame):null;
+  const handles=!pose?[]:tool==='rotate'?makeRotateHandles(pose,project):makeMoveHandles(pose,project);
+  if(tool==='move')drawMoveHandles(ctx,handles);
+  if(tool==='rotate')drawRotateHandles(ctx,handles);
+  if(tool==='scale')drawScaleHandles(ctx,handles);
   return {pick,handles};
 }
