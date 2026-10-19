@@ -92,6 +92,29 @@ The **Camera/Render** tab saves a dedicated shot camera independent of the edito
 - Frame export is intentionally bounded: max 120 frames or fewer at higher output resolutions, with a ~140 MB PNG safety threshold, UI progress and a cancel button. Every export happens locally and synchronously with the active browser session (it does *not* run in the background).
 - The existing WebM feature still records the interactive canvas in real time. For a clean camera-view recording, switch to Shot View first. PNG sequence export is independent of playback timing and does not create an MP4.
 
+## Mesh Workshop (v0.7)
+
+In the **Object inspector**, press **Convert to Editable Mesh** to copy a primitive's topology
+into the current object's own geometry, then select **Vertex**, **Edge**, or **Face**.
+The viewport displays selectable markers, with selected elements highlighted.
+Drag a marker with the mouse to change its local geometry, or enter the selected
+component's X/Y/Z coordinates numerically. Edge/face edits move their member vertices
+together, so neighboring polygons stay connected. **Alt-drag** snaps displacement
+to 0.25-unit increments. **Shift-drag** continues to pan the camera.
+
+- Changes are undoable; a complete drag uses one Undo history entry.
+- Geometry is stored as `object.geometry = {vertices, faces}` in local project JSON.
+- The same geometry is used in animated viewport rendering, shot PNGs and PNG-sequence exports.
+- Existing objects without a geometry property use their original primitives. Older
+  project files load unchanged. On import, geometry is strictly checked for valid,
+  finite vertices and in-range face indices.
+- Upper bounds: 800 vertices, 1200 faces, and up to 16 vertices per face.
+  Converting an object creates editable topology; this release does not
+  support extruding, beveling, deleting vertices, or subdividing.
+- **Important**: Mesh edits are local, static deformations. The object's existing
+  transform keyframes still animate its edited geometry, but vertex deformation
+  is not independently keyframed yet.
+
 ## Roadmap
 
 - Vertex/edge/face mesh editing, finer object picking and manipulators

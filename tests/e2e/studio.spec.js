@@ -282,3 +282,75 @@ test('shot camera and render settings survive JSON project round-trip',async({pa
   await expect(page.getByRole('combobox',{name:'Render resolution'})).toHaveValue('1280x720');
   expect(errors).toEqual([]);
 });
+
+test('Mesh Workshop converts a primitive, moves its vertex, and Undo restores it',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+ await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+ await expect(page.getByRole('group',{name:'Mesh selection mode'})).toBeVisible();
+ await expect(page.getByText('8 vertices')).toBeVisible();
+ await expect(page.getByText('12 edges')).toBeVisible();
+ await expect(page.getByText('6 faces')).toBeVisible();
+ const field=page.getByRole('spinbutton',{name:'Mesh vertex Y'});
+ const old=Number(await field.inputValue());
+ await field.fill(String(old+0.75));
+ await expect(field).toHaveValue(String(old+0.75));
+ await page.getByRole('button',{name:/Undo/}).click();
+ await expect(field).toHaveValue(String(old));
+ expect(errors).toEqual([]);
+});
+
+test('mesh viewport vertex drag changes geometry, and edge/face modes stay interactive',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+ await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+ const canvas=page.locator('canvas'),rect=await canvas.boundingBox();
+ const {makeProject}=await import('../../src/projection.js');
+ const {componentHandles,primitiveMesh}=await import('../../src/mesh.js');
+ const projection=makeProject({yaw:.66,pitch:.32,distance:9.3,target:[0,0,0]},rect.width,rect.height);
+ const mesh=primitiveMesh('box');
+ const pose={position:[-1.2,0,0],rotation:[0,0,0],scale:[1,1,1]};
+ const components=componentHandles(mesh,pose,projection,'vertex');
+ const pick=components[0];expect(pick).toBeTruthy();
+ const field=page.getByRole('spinbutton',{name:'Mesh vertex X'});
+ const old=Number(await field.inputValue());
+ await page.mouse.move(rect.x+pick.x,rect.y+pick.y);await page.mouse.down();
+ await page.mouse.move(rect.x+pick.x+45,rect.y+pick.y,{steps:8});await page.mouse.up();
+ const value=Number(await field.inputValue());expect(value).not.toBe(old);
+ await page.getByRole('button',{name:/Undo/}).click();
+ await expect(field).toHaveValue(String(old));
+ await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Edge'}).click();
+ await expect(page.getByRole('spinbutton',{name:'Mesh edge X'})).toBeVisible();
+ await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+ await expect(page.getByRole('spinbutton',{name:'Mesh face Z'})).toBeVisible();
+ await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Done'}).click();
+ await expect(page.getByRole('spinbutton',{name:'position X'})).toBeVisible();
+ expect(errors).toEqual([]);
+});
+
+test('editable mesh saves, loads, and renders without losing animation',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+ await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+ await page.getByRole('spinbutton',{name:'Mesh vertex Y'}).fill('1.55');
+ const event=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Save JSON'}).click();
+ const file=await event;
+ const fs=await import('node:fs/promises');
+ const json=JSON.parse(await fs.readFile(await file.path(),'utf8'));
+ expect(json.objects[0].geometry.vertices[0][1]).toBe(1.55);
+ expect(json.objects[0].keyframes.length).toBe(3);
+ await page.getByRole('button',{name:'New',exact:true}).click();
+ await page.locator('input[type="file"]').setInputFiles({
+   name:'mesh-round-trip.json',mimeType:'application/json',
+   buffer:Buffer.from(JSON.stringify(json))
+ });
+ await page.getByRole('button',{name:'Vertex'}).click();
+ await expect(page.getByRole('spinbutton',{name:'Mesh vertex Y'})).toHaveValue('1.55');
+ const download=page.waitForEvent('download');
+ await page.getByRole('button',{name:'Render PNG'}).click();
+ const png=await download;
+ const bytes=await fs.readFile(await png.path());
+ expect(bytes.readUInt32BE(16)).toBe(960);
+ expect(errors).toEqual([]);
+});

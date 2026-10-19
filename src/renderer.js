@@ -3,53 +3,12 @@ import {atFrame,clamp} from './scene.js';
 import {makeMoveHandles,drawMoveHandles,drawScaleHandles,makeRotateHandles,drawRotateHandles} from './gizmo.js';
 import {makeProject} from './projection.js';
 import {shadeFace,DEFAULT_LIGHTING} from './lighting.js';
+import {primitiveMesh,transformVertex,componentHandles,componentIndices,uniqueEdges} from './mesh.js';
 const TAU=Math.PI*2;
-const deg=n=>n*Math.PI/180;
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
-const add=(a,b)=>a.map((v,i)=>v+b[i]);
 const mul=(a,s)=>a.map(v=>v*s);
-const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=v=>mul(v,1/(Math.hypot(...v)||1));
-const meshes=new Map();
-function mesh(kind) {
-  if(meshes.has(kind)) return meshes.get(kind);
-  let vertices=[],faces=[];
-  if(kind==='box'){
-    vertices=[[-.6,-.6,-.6],[.6,-.6,-.6],[.6,.6,-.6],[-.6,.6,-.6],
-      [-.6,-.6,.6],[.6,-.6,.6],[.6,.6,.6],[-.6,.6,.6]];
-    faces=[[0,1,2,3],[4,5,6,7],[0,1,5,4],[3,2,6,7],[0,4,7,3],[1,5,6,2]];
-  } else if(kind==='pyramid') {
-    vertices=[[-.7,-.6,-.7],[.7,-.6,-.7],[.7,-.6,.7],[-.7,-.6,.7],[0,.8,0]];
-    faces=[[0,1,2,3],[0,1,4],[1,2,4],[2,3,4],[3,0,4]];
-  } else if(kind==='cylinder') {
-    const n=18;
-    for(let j=0;j<2;j++) for(let i=0;i<n;i++){
-      const a=TAU*i/n;vertices.push([Math.cos(a)*.6,j? .7:-.7,Math.sin(a)*.6]);
-    }
-    for(let i=0;i<n;i++)faces.push([i,(i+1)%n,(i+1)%n+n,i+n]);
-    faces.push([...Array(n).keys()].reverse(),[...Array(n).keys()].map(i=>i+n));
-  } else {
-    const ns=kind==='torus'?24:16, nr=kind==='torus'?10:10;
-    for(let i=0;i<=ns;i++)for(let j=0;j<=nr;j++){
-      const a=i/ns*TAU,b=j/nr*(kind==='torus'?TAU:Math.PI);
-      vertices.push(kind==='torus'
-        ?[(.7+.22*Math.cos(b))*Math.cos(a),.22*Math.sin(b),(.7+.22*Math.cos(b))*Math.sin(a)]
-        :[.7*Math.sin(b)*Math.cos(a),.7*Math.cos(b),.7*Math.sin(b)*Math.sin(a)]);
-    }
-    for(let i=0;i<ns;i++)for(let j=0;j<nr;j++){
-      const a=i*(nr+1)+j,b=a+nr+1;faces.push([a,b,b+1,a+1]);
-    }
-  }
-  const result={vertices,faces};meshes.set(kind,result);return result;
-}
-function transform(v,p) {
-  let [x,y,z]=[v[0]*p.scale[0],v[1]*p.scale[1],v[2]*p.scale[2]];
-  let a=deg(p.rotation[0]),c=Math.cos(a),s=Math.sin(a);[y,z]=[y*c-z*s,y*s+z*c];
-  a=deg(p.rotation[1]);c=Math.cos(a);s=Math.sin(a);[x,z]=[x*c+z*s,-x*s+z*c];
-  a=deg(p.rotation[2]);c=Math.cos(a);s=Math.sin(a);[x,y]=[x*c-y*s,x*s+y*c];
-  return [x+p.position[0],y+p.position[1],z+p.position[2]];
-}
 function rgb(hex) {return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)||0);}
 export function render(canvas,scene,frame,camera,selectedId,tool='move',options={}) {
   if(!canvas)return {pick:[],handles:[]};
@@ -91,8 +50,8 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move',options=
   const polys=[],pick=[];
   for(const object of scene.objects) {
     if(!object.visible)continue;
-    const p=atFrame(object,frame),m=mesh(object.type);
-    const verts=m.vertices.map(v=>transform(v,p)),center=project(p.position);
+    const p=atFrame(object,frame),m=object.geometry||primitiveMesh(object.type);
+    const verts=m.vertices.map(v=>transformVertex(v,p)),center=project(p.position);
     if(center)pick.push({...center,id:object.id});
     for(const face of m.faces){
       const points=face.map(i=>verts[i]),proj=points.map(project);
@@ -115,15 +74,44 @@ export function render(canvas,scene,frame,camera,selectedId,tool='move',options=
     ctx.closePath();ctx.fillStyle=p.color;ctx.fill();ctx.strokeStyle=p.selected?'#bdc0ff':'#162037';
     ctx.lineWidth=p.selected?1.25:.5;ctx.stroke();
   }
+  // Editable topology appears only in the interactive viewport, never in exports.
+  let components=[];
+  const meshKind=helpers?options.meshMode:null;
+  if(meshKind&&selectedId){
+    const object=scene.objects.find(o=>o.id===selectedId&&o.visible&&o.geometry);
+    if(object){
+      const p=atFrame(object,frame),geometry=object.geometry;
+      const projected=geometry.vertices.map(v=>project(transformVertex(v,p)));
+      if(meshKind==='edge'||meshKind==='face'){
+        const selections=meshKind==='edge'?uniqueEdges(geometry):geometry.faces;
+        ctx.save();ctx.lineWidth=1;
+        selections.forEach((indices,i)=>{
+          const points=indices.map(j=>projected[j]);
+          if(points.some(pt=>!pt))return;
+          ctx.beginPath();points.forEach((pt,k)=>k?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));
+          if(meshKind==='face')ctx.closePath();
+          ctx.strokeStyle=i===options.componentSelection?'#f8d394':'#78b9ec80';
+          ctx.lineWidth=i===options.componentSelection?3:1;
+          ctx.stroke();
+        });ctx.restore();
+      }
+      components=componentHandles(geometry,p,project,meshKind);
+      ctx.save();for(const c of components){
+        ctx.beginPath();ctx.arc(c.x,c.y,c.index===options.componentSelection?7:4.5,0,TAU);
+        ctx.fillStyle=c.index===options.componentSelection?'#ffd589':meshKind==='vertex'?'#9af4dc':'#80baff';
+        ctx.fill();ctx.strokeStyle='#061222';ctx.lineWidth=1.5;ctx.stroke();
+      }ctx.restore();
+    }
+  }
   const selected=pick.find(p=>p.id===selectedId);
-  if(helpers&&selected){ctx.strokeStyle='#d4d1ff';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  if(helpers&&!meshKind&&selected){ctx.strokeStyle='#d4d1ff';ctx.lineWidth=1;ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.arc(selected.x,selected.y,16,0,TAU);ctx.stroke();ctx.setLineDash([]);}
-  const selectedObject=helpers&&tool!=='orbit'?scene.objects.find(o=>o.id===selectedId && o.visible):null;
+  const selectedObject=helpers&&!meshKind&&tool!=='orbit'?scene.objects.find(o=>o.id===selectedId && o.visible):null;
   const pose=selectedObject?atFrame(selectedObject,frame):null;
   const handles=!pose?[]:tool==='rotate'?makeRotateHandles(pose,project):makeMoveHandles(pose,project);
   if(helpers&&tool==='move')drawMoveHandles(ctx,handles);
   if(helpers&&tool==='rotate')drawRotateHandles(ctx,handles);
   if(helpers&&tool==='scale')drawScaleHandles(ctx,handles);
   ctx.restore();
-  return {pick,handles};
+  return {pick,handles,components};
 }

@@ -85,3 +85,19 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
   border-radius:7px;padding:10px;text-align:center;font-weight:700}
 .viewport-actions{max-width:82%}
 @media(max-width:960px){.viewport-actions{max-width:92%}.tool-button{padding:5px 4px;font-size:10px}}
+
+/* v0.7 Mesh Workshop */
+.mesh-workshop{border-top:1px solid #33425c;padding-top:10px;margin:14px 0}
+.mesh-workshop .transform-title{margin:10px 0}
+.mesh-help{font-size:11px;line-height:1.55;color:#96a9c8;margin:9px 0}
+.mesh-counts{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:8px 0;
+  font-size:10px;text-align:center;color:#b6dbed}
+.mesh-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+.mesh-modes button{font-size:10px;padding:7px 3px;border-radius:5px}
+.mesh-modes button[aria-pressed=true]{background:#655cae;border-color:#a9a3ed;color:#fff}
+.mesh-select{display:flex;justify-content:space-between;align-items:center;gap:5px;
+  color:#adbed9;font-size:10px;margin:12px 0 7px}
+.mesh-select select{width:135px;font-size:11px}
+.mesh-coordinates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mesh-coordinates label{font-size:10px;display:flex;flex-direction:column;gap:5px;color:#92b2da}
+.mesh-coordinates input{width:100%;font-size:11px;padding:6px 3px;text-align:center}

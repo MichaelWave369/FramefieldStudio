@@ -1,6 +1,7 @@
 // Original Framefield scene model. SPDX-License-Identifier: MIT
 import {sanitizeMaterial,sanitizeLighting,DEFAULT_LIGHTING,DEFAULT_MATERIAL} from './lighting.js';
 import {sanitizeShotCamera,sanitizeRender} from './shot.js';
+import {validateMesh} from './mesh.js';
 export const TYPES = ['box','sphere','pyramid','cylinder','torus'];
 export const PALETTE = ['#9991ff','#62d6ca','#f6ad73','#e994d4','#73b9eb'];
 export const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
@@ -134,6 +135,7 @@ export function validateProject(raw) {
     }
     return {id:id(),type:o.type,name:String(o.name||'Shape '+(i+1)).slice(0,65),
       color:/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#9991ff',material:sanitizeMaterial(o.material),visible:o.visible!==false,
+      ...(o.geometry!==undefined?{geometry:validateMesh(o.geometry)}:{}),
       keyframes:[...unique.values()].sort((a,b)=>a.frame-b.frame)};
   });
   return {version:1,name:String(raw.name||'Imported Scene').slice(0,80),
