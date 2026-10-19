@@ -1,5 +1,7 @@
 // Self-contained Canvas 2D perspective mesh renderer. SPDX-License-Identifier: MIT
 import {atFrame,clamp} from './scene.js';
+import {makeMoveHandles,drawMoveHandles} from './gizmo.js';
+import {makeProject} from './projection.js';
 const TAU=Math.PI*2;
 const deg=n=>n*Math.PI/180;
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -48,9 +50,9 @@ function transform(v,p) {
   return [x+p.position[0],y+p.position[1],z+p.position[2]];
 }
 function rgb(hex) {return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)||0);}
-export function render(canvas,scene,frame,camera,selectedId) {
-  if(!canvas)return [];
-  const ctx=canvas.getContext('2d');if(!ctx)return [];
+export function render(canvas,scene,frame,camera,selectedId,tool='move') {
+  if(!canvas)return {pick:[],handles:[]};
+  const ctx=canvas.getContext('2d');if(!ctx)return {pick:[],handles:[]};
   const bounds=canvas.getBoundingClientRect();
   const w=Math.max(1,Math.round(bounds.width)),h=Math.max(1,Math.round(bounds.height));
   const dpr=Math.min(window.devicePixelRatio||1,2);
@@ -58,15 +60,7 @@ export function render(canvas,scene,frame,camera,selectedId) {
   if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#0c1526';ctx.fillRect(0,0,w,h);
-  const {yaw,pitch,distance,target}=camera;
-  const eye=add(target,[Math.sin(yaw)*Math.cos(pitch)*distance,Math.sin(pitch)*distance,Math.cos(yaw)*Math.cos(pitch)*distance]);
-  const forward=norm(sub(target,eye)),right=norm(cross(forward,[0,1,0])),up=norm(cross(right,forward));
-  const focal=Math.min(w,h)*1.12;
-  function project(p) {
-    const rel=sub(p,eye),depth=dot(rel,forward);
-    if(depth<.08)return null;
-    return {x:w/2+dot(rel,right)/depth*focal,y:h/2-dot(rel,up)/depth*focal,depth};
-  }
+  const project=makeProject(camera,w,h);
   function line(a,b,color,width=1){
     const pa=project(a),pb=project(b);if(!pa||!pb)return;
     ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(pa.x,pa.y);
@@ -105,5 +99,8 @@ export function render(canvas,scene,frame,camera,selectedId) {
   const selected=pick.find(p=>p.id===selectedId);
   if(selected){ctx.strokeStyle='#d4d1ff';ctx.lineWidth=1;ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.arc(selected.x,selected.y,16,0,TAU);ctx.stroke();ctx.setLineDash([]);}
-  return pick;
+  const selectedObject=tool==='move'?scene.objects.find(o=>o.id===selectedId && o.visible):null;
+  const handles=selectedObject?makeMoveHandles(atFrame(selectedObject,frame),project):[];
+  drawMoveHandles(ctx,handles);
+  return {pick,handles};
 }
