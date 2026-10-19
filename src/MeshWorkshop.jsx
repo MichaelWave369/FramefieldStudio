@@ -42,7 +42,7 @@ export default function MeshWorkshop({object,mode,selectedComponent,onConvert,on
             }}/>
         </label>)}
       </div>
-      {mode==='face'&&<div className="topology-tools" aria-label="Face topology tools">
+      {mode==='face'&&<div className="topology-tools" role="group" aria-label="Face topology tools">
         <div className="transform-title">TOPOLOGY TOOLS <span>FACE ONLY</span></div>
         <p className="mesh-help">Each operation creates a new cap on this face and
           connects it to the original border. Undo reverses the entire operation.</p>
