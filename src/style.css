@@ -200,3 +200,15 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
  color:#ffe4dc;border-radius:7px;overflow-wrap:anywhere}
 @media(max-width:710px){.vault-record{align-items:stretch;flex-direction:column}
   .vault-record-actions{justify-content:flex-start}}
+
+/* Release hardening: wrapped toolbar rows must occupy real layout height.
+   Without this, the scene workspace overlays the next row and blocks clicks. */
+.topbar{
+  height:auto;
+  min-height:75px;
+  flex:0 0 auto;
+  position:relative;
+  z-index:10;
+  align-content:center;
+  row-gap:9px;
+}
