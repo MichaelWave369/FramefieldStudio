@@ -294,7 +294,7 @@ test('Mesh Workshop converts a primitive, moves its vertex, and Undo restores it
  const field=page.getByRole('spinbutton',{name:'Mesh vertex Y'});
  const old=Number(await field.inputValue());
  await field.fill(String(old+0.75));
- await expect(field).toHaveValue(String(old+0.75));
+ await expect(field).toHaveValue(String(Number((old+0.75).toFixed(3))));
  await page.getByRole('button',{name:/Undo/}).click();
  await expect(field).toHaveValue(String(old));
  expect(errors).toEqual([]);
