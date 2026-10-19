@@ -1,5 +1,6 @@
 import React, {useEffect,useMemo,useRef,useState} from 'react';
-import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject} from './scene.js';
+import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject,setChannelCurve,setChannelKeyValue} from './scene.js';
+import GraphEditor from './GraphEditor.jsx';
 import {render} from './renderer.js';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
 import {hitMoveHandle,axisDragWorldDelta,hitRotateHandle,screenRotationDelta,scaledAxisValue} from './gizmo.js';
@@ -28,6 +29,8 @@ export default function App(){
   const [camera,setCamera]=useState(cameraInitial);
   const [shape,setShape]=useState('box');
   const [tool,setTool]=useState('move');
+  const [timelineMode,setTimelineMode]=useState('dope');
+  const [graphChannel,setGraphChannel]=useState('position.0');
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
   const canvasRef=useRef(null),picker=useRef([]),handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
@@ -119,6 +122,18 @@ export default function App(){
       rotation:[...k.rotation],scale:[...k.scale] }))};
     setScene(s=>({...s,objects:[...s.objects,o]}));setSelectedId(o.id);
     setStatus('Object duplicated');
+  }
+  function editGraphKey(keyFrame,channel,value,amend=false){
+    const update=s=>({...s,objects:s.objects.map(o=>o.id===selectedId
+      ?setChannelKeyValue(o,keyFrame,channel,value):o)});
+    if(amend)amendScene(update);else setScene(update);
+    setStatus('Edited '+channel+' key · F'+keyFrame);
+  }
+  function editGraphCurve(keyFrame,channel,curve,amend=false){
+    const update=s=>({...s,objects:s.objects.map(o=>o.id===selectedId
+      ?setChannelCurve(o,keyFrame,channel,curve):o)});
+    if(amend)amendScene(update);else setScene(update);
+    setStatus('Updated '+channel+' easing · F'+keyFrame);
   }
   function seek(next){setPlaying(false);setFrame(clamp(Math.round(next),0,scene.duration));}
   function newProject(){
@@ -256,7 +271,7 @@ export default function App(){
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.3</small></div></div>
+      <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React alpha 0.4</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
         onChange={e=>setScene(s=>({...s,name:e.target.value.slice(0,80)}))}/>
         <span className="pill"><span className="live-dot"/> ORIGINAL ENGINE</span></div>
@@ -359,9 +374,16 @@ export default function App(){
         </div>}
       </aside>
     </main>
-    <section className="timeline-section" aria-label="Animation timeline">
+    <section className={'timeline-section '+(timelineMode==='graph'?'graph-open':'')} aria-label="Animation timeline">
       <div className="timeline-bar">
-        <div className="timeline-title"><strong>DOPE SHEET</strong><span>KEYFRAME TIMELINE</span></div>
+        <div className="timeline-title">
+          <strong>{timelineMode==='dope'?'DOPE SHEET':'GRAPH EDITOR'}</strong>
+          <span>{timelineMode==='dope'?'KEYFRAME TIMELINE':'ANIMATION CURVES'}</span>
+        </div>
+        <div className="timeline-toggle" role="group" aria-label="Animation editors">
+          <button aria-pressed={timelineMode==='dope'} onClick={()=>setTimelineMode('dope')}>Dope Sheet</button>
+          <button aria-pressed={timelineMode==='graph'} onClick={()=>setTimelineMode('graph')}>Graph Editor</button>
+        </div>
         <div className="transport">
           <button aria-label="First frame" onClick={()=>seek(0)}>⏮</button>
           <button aria-label="Previous frame" onClick={()=>seek(frame-1)}>‹</button>
@@ -376,6 +398,10 @@ export default function App(){
           <label>END <input type="number" min="12" max="600" value={scene.duration} onChange={e=>durationUpdate(e.target.value)}/></label>
         </div>
       </div>
+      {timelineMode==='graph' ?
+        <GraphEditor object={selected} channelId={graphChannel}
+          onChannelChange={setGraphChannel} frame={frame} duration={scene.duration}
+          onSeek={seek} onKeyValue={editGraphKey} onCurveChange={editGraphCurve}/> :
       <div className="timeline-scroll">
         <div className="timeline-ruler"><div className="track-label">OBJECT / FRAME</div>
           <div className="ruler-range" onClick={timelineClick}>
@@ -394,7 +420,7 @@ export default function App(){
         <div className="playhead-track"><div className="track-label"/>
           <div className="playhead-range"><div className="playhead" style={{left:(frame/scene.duration*100)+'%'}}/></div>
         </div>
-      </div>
+      </div>}
     </section>
     <footer><span>Framefield Studio <span className="muted">· original MIT source · projects stay on your device</span></span>
       <span className="status" role="status" aria-live="polite">{status}</span></footer>

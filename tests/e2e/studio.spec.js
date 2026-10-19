@@ -105,3 +105,38 @@ test('scale gizmo changes one axis and undo restores its scale',async({page})=>{
  await expect(page.getByRole('spinbutton',{name:'scale X'})).toHaveValue(String(original));
  expect(errors).toEqual([]);
 });
+
+test('graph editor changes interpolation and Undo restores the linear value',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Graph Editor'}).click();
+  await expect(page.getByRole('img',{name:'Editable animation curve'})).toBeVisible();
+  await page.getByRole('combobox',{name:'Curve preset'}).selectOption('easeIn');
+  await expect(page.getByRole('combobox',{name:'Curve preset'})).toHaveValue('easeIn');
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByRole('combobox',{name:'Curve preset'})).toHaveValue('linear');
+  expect(errors).toEqual([]);
+});
+
+test('graph key drag edits a selected channel value; Undo and Redo work',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Graph Editor'}).click();
+  const node=page.getByTestId('curve-key-60');
+  await expect(node).toBeVisible();
+  const box=await node.boundingBox();
+  const before=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2-35,{steps:8});
+  await page.mouse.up();
+  const after=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(after).toBeGreaterThan(before+.15);
+  await page.getByRole('button',{name:/Undo/}).click();
+  const old=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(old).toBeCloseTo(before,2);
+  await page.getByRole('button',{name:/Redo/}).click();
+  const again=Number(await page.getByRole('spinbutton',{name:'position X'}).inputValue());
+  expect(again).toBeCloseTo(after,2);
+  expect(errors).toEqual([]);
+});
