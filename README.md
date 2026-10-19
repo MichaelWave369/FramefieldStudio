@@ -13,7 +13,7 @@ An **original, MIT-licensed React/Vite browser 3D keyframe animation editor**. W
 - JSON project save/load (locally), PNG snapshots and browser-supported real-time WebM recording
 - No account, analytics, remote project upload or database
 
-**Renderer note:** This React port uses a Canvas2D software 3D renderer. The earlier standalone proof-of-concept had a WebGL2 path. A future improvement can migrate GPU rendering behind the same pure scene model. This is not Blender feature parity: no polygon editing, sculpting, UVs, rigging or GPU ray tracing yet.
+**Renderer note:** This React port uses a Canvas2D software 3D renderer. The earlier standalone proof-of-concept had a WebGL2 path. A future improvement can migrate GPU rendering behind the same pure scene model. This is not Blender feature parity: geometry editing is limited, and there is no sculpting, UVs, rigging or GPU ray tracing yet.
 
 ## Local development
 
@@ -114,6 +114,28 @@ to 0.25-unit increments. **Shift-drag** continues to pan the camera.
 - **Important**: Mesh edits are local, static deformations. The object's existing
   transform keyframes still animate its edited geometry, but vertex deformation
   is not independently keyframed yet.
+
+## Face Topology Tools (v0.8)
+
+Convert a primitive in **Mesh Workshop**, choose **Face** mode, then select a face
+in the viewport or the inspector dropdown. Use the three new original operators:
+
+- **Extrude Face**: create a parallel elevated cap with vertical side walls.
+  Enter a positive extrusion height, from 0.01 to 5 local units.
+- **Inset Face**: shrink the selected cap toward its centroid and build a flat
+  polygon ring around it. Inset ratio is a fraction, from 0.05 to 0.8.
+- **Bevel Face**: create a smaller elevated cap and connect it to the original
+  boundary with sloping chamfer panels. This is a **single face-border chamfer**,
+  not a general edge bevel or a rounded/multi-segment bevel.
+
+The new cap retains the selected face's index. Each operator creates one Undo
+step, keeps the original mesh unchanged in history, and respects the
+800-vertex/1200-face limits. Mesh JSON validation and all existing material,
+animation, camera, PNG and frame-sequence exports use the same resulting geometry.
+
+The first-pass tools work on individual polygon faces. Inset/chamfer tools
+require convex boundaries and do not perform topology-aware multi-face inset,
+subdivision, sculpting, Boolean cuts, or vertex-level deformation keyframes.
 
 ## Roadmap
 

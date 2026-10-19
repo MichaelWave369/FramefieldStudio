@@ -1,10 +1,13 @@
 import React from 'react';
 import {componentIndices,uniqueEdges} from './mesh.js';
-export default function MeshWorkshop({object,mode,selectedComponent,onConvert,onModeChange,onSelectionChange,onMove}){
+export default function MeshWorkshop({object,mode,selectedComponent,onConvert,onModeChange,onSelectionChange,onMove,onOperate}){
+  const [extrude,setExtrude]=React.useState(.45);
+  const [inset,setInset]=React.useState(.25);
+  const [bevel,setBevel]=React.useState(.2);
   if(!object)return null;
   const m=object.geometry;
   if(!m)return <section className="mesh-workshop" aria-label="Mesh Workshop">
-    <div className="transform-title">MESH WORKSHOP <span>v0.7</span></div>
+    <div className="transform-title">MESH WORKSHOP <span>v0.8</span></div>
     <p className="mesh-help">Turn this primitive into editable geometry while keeping its animation.</p>
     <button className="primary full" onClick={onConvert}>Convert to Editable Mesh</button>
   </section>;
@@ -39,6 +42,26 @@ export default function MeshWorkshop({object,mode,selectedComponent,onConvert,on
             }}/>
         </label>)}
       </div>
+      {mode==='face'&&<div className="topology-tools" aria-label="Face topology tools">
+        <div className="transform-title">TOPOLOGY TOOLS <span>FACE ONLY</span></div>
+        <p className="mesh-help">Each operation creates a new cap on this face and
+          connects it to the original border. Undo reverses the entire operation.</p>
+        {[
+          {key:'extrude',title:'Extrude Face',hint:'Height',value:extrude,set:setExtrude,min:.01,max:5,step:.05},
+          {key:'inset',title:'Inset Face',hint:'Inset ratio',value:inset,set:setInset,min:.05,max:.8,step:.05},
+          {key:'bevel',title:'Bevel Face',hint:'Chamfer depth',value:bevel,set:setBevel,min:.01,max:5,step:.05}
+        ].map(op=><div className="topology-row" key={op.key}>
+          <label>{op.hint}
+            <input aria-label={op.title+' amount'} type="number" value={op.value}
+              min={op.min} max={op.max} step={op.step}
+              onChange={e=>{if(e.target.value==='')return;
+                const n=Number(e.target.value);if(Number.isFinite(n))op.set(n);}}/>
+          </label>
+          <button className="topology-action" onClick={()=>onOperate(op.key,op.value)}>{op.title}</button>
+        </div>)}
+        <p className="mesh-help">Bevel Face adds one sloped chamfer ring, not a rounded edge
+          bevel. Inset amounts are fractions of the face size.</p>
+      </div>}
     </>}
     <p className="mesh-help">Edits are undoable, and local mesh geometry is saved in JSON. Object keyframes remain unchanged.</p>
   </section>;

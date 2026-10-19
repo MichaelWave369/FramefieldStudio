@@ -354,3 +354,71 @@ test('editable mesh saves, loads, and renders without losing animation',async({p
  expect(bytes.readUInt32BE(16)).toBe(960);
  expect(errors).toEqual([]);
 });
+
+test('face extrusion and inset build real geometry, each undoable in one step',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+  await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+  await expect(page.getByRole('group',{name:'Face topology tools'})).toBeVisible();
+  const selected=page.getByRole('combobox',{name:'Selected mesh element'});
+  await selected.selectOption('1');
+  await page.getByRole('spinbutton',{name:'Extrude Face amount'}).fill('0.6');
+  await page.getByRole('button',{name:'Extrude Face'}).click();
+  await expect(page.getByText('12 vertices')).toBeVisible();
+  await expect(page.getByText('10 faces')).toBeVisible();
+  await page.getByRole('button',{name:/Undo/}).click();
+  await expect(page.getByText('8 vertices')).toBeVisible();
+  await expect(page.getByText('6 faces')).toBeVisible();
+  await page.getByRole('button',{name:/Redo/}).click();
+  await expect(page.getByText('12 vertices')).toBeVisible();
+  await page.getByRole('button',{name:'Inset Face'}).click();
+  await expect(page.getByText('16 vertices')).toBeVisible();
+  await expect(page.getByText('14 faces')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('face bevel creates chamfer panels and JSON preserves the edited topology for rendering',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+  await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+  await page.getByRole('combobox',{name:'Selected mesh element'}).selectOption('1');
+  await page.getByRole('button',{name:'Bevel Face'}).click();
+  await expect(page.getByText('12 vertices')).toBeVisible();
+  await expect(page.getByText('10 faces')).toBeVisible();
+  const event=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Save JSON'}).click();
+  const download=await event;
+  const fs=await import('node:fs/promises');
+  const data=JSON.parse(await fs.readFile(await download.path(),'utf8'));
+  expect(data.objects[0].geometry.vertices).toHaveLength(12);
+  expect(data.objects[0].geometry.faces).toHaveLength(10);
+  expect(data.objects[0].keyframes).toHaveLength(3);
+  await page.getByRole('button',{name:'New',exact:true}).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name:'face-bevel.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))
+  });
+  await expect(page.getByRole('option',{name:/Orbit Cube/})).toBeVisible();
+  await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+  await expect(page.getByText('12 vertices')).toBeVisible();
+  const pngEvent=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Render PNG'}).click();
+  const image=await pngEvent,bytes=await fs.readFile(await image.path());
+  expect(bytes.readUInt32BE(16)).toBe(960);
+  expect(bytes.readUInt32BE(20)).toBe(540);
+  expect(errors).toEqual([]);
+});
+
+test('invalid face-operation input is caught without crashing or modifying geometry',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4173/FramefieldStudio/');
+  await page.getByRole('button',{name:'Convert to Editable Mesh'}).click();
+  await page.getByRole('group',{name:'Mesh selection mode'}).getByRole('button',{name:'Face'}).click();
+  await page.getByRole('spinbutton',{name:'Extrude Face amount'}).fill('0');
+  await page.getByRole('button',{name:'Extrude Face'}).click();
+  await expect(page.getByText('8 vertices')).toBeVisible();
+  await expect(page.getByText('6 faces')).toBeVisible();
+  await expect(page.getByText(/Mesh operation unavailable/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
