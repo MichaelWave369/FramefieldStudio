@@ -43,7 +43,7 @@ export default function GraphEditor({
     }
     if(samples.at(-1)?.[0]!==duration)
       samples.push([duration,atFrame(object,duration)[group][index]]);
-    const path=samples.map(([f,value],i])=>
+    const path=samples.map(([f,value],i)=>
       (i?'L':'M')+xFor(f).toFixed(2)+','+yFor(value).toFixed(2)).join(' ');
     return {minimum,maximum,xFor,yFor,valueFor,path};
   },[object,keys,group,index,duration]);
