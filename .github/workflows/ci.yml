@@ -25,3 +25,35 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser runtime smoke test
         run: npx playwright test --max-failures=1
+
+  browser-compatibility:
+    name: Cross-browser creator workflow (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build Pages-path studio
+        run: npm run build
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Validate real editing, import, and rendering workflows
+        run: npx playwright test -c playwright.compat.config.js --project ${{ matrix.browser }} --max-failures=1
+      - name: Preserve compatibility test failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: framefield-compat-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

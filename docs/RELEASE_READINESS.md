@@ -32,6 +32,21 @@ completed the v1.0 acceptance checklist.
 | Secondary-browser/mobile usability | Manual compatibility review | Yes |
 | Licensing, file formats, accessibility limitations | Human source and product review | Yes |
 
+## Additional browser coverage in PR #16
+
+- Pull requests run focused desktop workflow checks in **Firefox and WebKit**
+  alongside the existing complete Chromium suite.
+- After deployment, the public live acceptance suite runs all four tests in
+  **Chromium, Firefox and WebKit** on Linux.
+- The cross-browser tests do not prove MP4 support, browser-specific WebM
+  codecs, mobile layout, touch input, or every OS implementation.
+- Manual target-browser testing and license/product review remain mandatory.
+- First automated live run on Oct 19, 2026 (Pacific time):
+  <https://github.com/MichaelWave369/FramefieldStudio/actions/runs/39357514754>.
+  Chromium **4/4** tests passed against deployed merge
+  `e0f0260acc1e085d4f7ff4abd4e5331cebd3e42f`; evidence retained.
+  This is automation evidence, **not** human stable-release approval.
+
 ## Manual live audit instructions
 
 1. Merge PR #14 only when its own PR checks are green.

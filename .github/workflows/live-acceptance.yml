@@ -36,9 +36,9 @@ jobs:
           FRAMEFIELD_LIVE_URL: https://michaelwave369.github.io/FramefieldStudio/
           FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
         run: npm run wait:live
-      - name: Install Chromium browser
-        run: npx playwright install --with-deps chromium
-      - name: Confirm live deployment and browser creator workflow
+      - name: Install Chromium, Firefox and WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Confirm live deployment across Chromium, Firefox and WebKit
         env:
           FRAMEFIELD_LIVE_URL: https://michaelwave369.github.io/FramefieldStudio/
           FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
