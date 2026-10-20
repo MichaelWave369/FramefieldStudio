@@ -22,6 +22,10 @@ until all automated checks and this manual walkthrough have passed.
 
 - [ ] Run `npm ci`, `npm test`, `npm run build` on clean checkout.
 - [ ] Run Playwright Chromium suite on the built GitHub Pages path.
+- [ ] Pass Firefox and WebKit desktop creator-workflow smoke tests on the
+      production preview through the PR compatibility matrix.
+- [ ] Verify public-site live acceptance passes in Chromium, Firefox and WebKit
+      for the exact Pages deployment SHA.
 - [ ] Verify the GitHub Pages deployment loads React with no console errors.
 - [ ] Inspect source, dependencies and assets for MIT/license compatibility.
 - [ ] Confirm no remote telemetry, credentials, proprietary sample media.

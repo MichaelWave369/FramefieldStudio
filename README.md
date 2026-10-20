@@ -284,6 +284,28 @@ evidence is retained as a workflow artifact. This is *automated deployment
 verification*, **not** a substitute for manual usability, licensing and
 cross-browser reviews before any stable version tag.
 
+## Cross-browser acceptance (PR #16)
+
+Framefield's v1.0 release candidate includes a focused
+**Firefox and WebKit** suite, in addition to the full Chromium regression
+suite. Pull request checks load the built Pages-path app in both engines and
+exercise viewport drawing, onboarding, Scene Vault recovery, editable
+mesh/modifier operations, JSON import and actual PNG export.
+
+After deployment, **Live v1 Release Acceptance** runs its existing four
+public-site checks in all three engines, against the exact deployed Git SHA.
+This uncovers compatibility issues before a stable tag, but it does not
+guarantee mobile, touch or WebM codec support. Those require human review.
+
+Run locally:
+
+```bash
+npm run build
+npx playwright install chromium firefox webkit
+npm run test:compat
+npm run test:live
+```
+
 ## Roadmap
 
 - Mesh retopology, advanced manipulators and non-destructive face operations

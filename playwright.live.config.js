@@ -9,7 +9,12 @@ export default defineConfig({
   timeout:30000,
   workers:1,
   retries:0,
-  use:{browserName:'chromium',headless:true,baseURL:live,
+  projects:[
+    {name:'chromium',use:{browserName:'chromium'}},
+    {name:'firefox',use:{browserName:'firefox'}},
+    {name:'webkit',use:{browserName:'webkit'}}
+  ],
+  use:{headless:true,baseURL:live,
     actionTimeout:12000,navigationTimeout:25000,
     trace:'retain-on-failure',screenshot:'only-on-failure'},
   reporter:[['list'],['html',{open:'never'}]]
