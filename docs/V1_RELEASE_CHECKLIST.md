@@ -10,8 +10,9 @@ until all automated checks and this manual walkthrough have passed.
 - [ ] After merge: Pages deployment for this exact `main` commit succeeded.
 - [ ] Open `https://michaelwave369.github.io/FramefieldStudio/release-info.json`
       and compare `commit` with the deployed GitHub Pages build SHA.
-- [ ] Trigger **Actions → Live v1 Release Acceptance** on `main` after deployment.
-      Confirm deployed SHA equality and all live Chromium checks pass.
+- [ ] After PR #15: confirm **Live v1 Release Acceptance** ran automatically
+      after the successful Pages deployment. Check matching deployed SHA and all
+      public-site Chromium checks. Manual dispatch remains available.
 - [ ] Download and archive the live acceptance evidence artifact.
 - [ ] Record SHA, test date, tested browser, and reviewer in
       [RELEASE_READINESS.md](RELEASE_READINESS.md); do not mark unperformed
