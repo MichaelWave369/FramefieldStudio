@@ -194,21 +194,7 @@ Restore only if it is the work you want, or discard it deliberately.
 **Unexpected movement while modeling:** choose the correct tool G/R/S,
 use **Done** to leave Mesh Workshop, and check Shot View is disabled.
 
-## 9. Release checks and deployed revision
-
-This creator manual documents the **v1.0 candidate**, not a stable tag.
-Maintainers verify the exact deployment by opening
-[`release-info.json`](https://michaelwave369.github.io/FramefieldStudio/release-info.json)
-on the public site. It contains the full Git commit SHA, package version,
-build time and a `candidate` label.
-
-Once a merge's GitHub Pages workflow succeeds, run the separate
-**Live v1 Release Acceptance** GitHub Actions workflow manually.
-It tests the real public URL and rejects deployments that do not match
-the expected SHA. Automated live browser checks supplement, but do not
-replace, manual cross-browser usability review.
-
-## 10. Project integrity and publishing
+## 9. Project integrity and publishing
 
 Before treating a candidate as v1.0 stable, review the acceptance steps in
 [the release checklist](V1_RELEASE_CHECKLIST.md), verify the live GitHub Pages

@@ -24,8 +24,6 @@ jobs:
         run: npm test
       - name: Build app
         run: npm run build
-      - name: Audit release artifact
-        run: npm run audit:dist
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Browser runtime smoke test

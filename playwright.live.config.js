@@ -1,5 +1,5 @@
 // Run ONLY against already-deployed GitHub Pages, never the Vite preview server.
-// Invoke manually after the Pages deployment finishes, before a stable release.
+// Invoked automatically after a successful Pages deployment, or manually.
 import {defineConfig} from '@playwright/test';
 const live=process.env.FRAMEFIELD_LIVE_URL||
   'https://michaelwave369.github.io/FramefieldStudio/';

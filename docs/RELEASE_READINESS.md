@@ -19,7 +19,7 @@ evidence, and human acceptance before a stable Git tag is permitted.
 This is evidence of automated verification, not a claim that a human has
 completed the v1.0 acceptance checklist.
 
-## PR #14 gates (pending until this branch merges)
+## Release gates (PR #14 landed; PR #15 adds post-deploy automation)
 
 | Gate | How it is verified | Required to call v1.0 stable? |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ completed the v1.0 acceptance checklist.
 | GitHub Pages path and bundled assets | `npm run audit:dist` in CI and Pages | Yes |
 | Local Chromium regression suite | `npx playwright test` in CI and Pages | Yes |
 | Public deployment freshness | `release-info.json` exact commit SHA | Yes |
-| Public Pages Chromium acceptance | Manually dispatch **Live v1 Release Acceptance** on `main` | Yes |
+| Public Pages Chromium acceptance | Auto-trigger after successful Pages deployment (or manually dispatch on `main`) | Yes |
 | Save/reopen and WebM playback on user machines | Manual checklist on at least one desktop browser | Yes |
 | Secondary-browser/mobile usability | Manual compatibility review | Yes |
 | Licensing, file formats, accessibility limitations | Human source and product review | Yes |
@@ -39,12 +39,15 @@ completed the v1.0 acceptance checklist.
    for the PR #14 merge commit on `main`.
 3. Visit `https://michaelwave369.github.io/FramefieldStudio/release-info.json`.
    Compare its **40-character commit SHA** with the merge commit.
-4. Open **Actions → Live v1 Release Acceptance → Run workflow** using `main`.
-   Its optional `expected_sha` can pin a specific intended deployment.
-   Without that input, the audit expects its own checkout's commit SHA.
-5. Review the browser audit result and download its `framefield-live-acceptance`
-   artifact. If the public Pages CDN is still on an older commit, fail closed
-   and run the audit once the site is up to date.
+4. Starting with PR #15, the successful Pages deployment triggers
+   **Live v1 Release Acceptance** automatically for the same source SHA.
+   It waits up to three minutes for CDN propagation, then tests the
+   live site. You can also run **Actions → Live v1 Release Acceptance
+   → Run workflow** manually from `main`, optionally specifying `expected_sha`.
+5. Review the browser acceptance result and download the
+   `framefield-live-acceptance` evidence artifact. Any stale or
+   unreachable CDN that fails the bounded freshness gate is reported
+   as a failure, not mistaken for an application regression.
 6. Complete every applicable checkbox in `docs/V1_RELEASE_CHECKLIST.md` on
    actual user machines. In particular, manually verify WebM playback and
    browser-local recovery and save behavior across restarts.

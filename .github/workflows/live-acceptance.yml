@@ -1,5 +1,9 @@
 name: Live v1 Release Acceptance
 on:
+  workflow_run:
+    workflows: ["Deploy GitHub Pages"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -14,20 +18,30 @@ concurrency:
 jobs:
   live-acceptance:
     name: Audit deployed GitHub Pages
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Check out the exact commit Pages built, not whatever main becomes later.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
+      - name: Wait for Pages CDN to serve the deployed commit
+        env:
+          FRAMEFIELD_LIVE_URL: https://michaelwave369.github.io/FramefieldStudio/
+          FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
+        run: npm run wait:live
       - name: Install Chromium browser
         run: npx playwright install --with-deps chromium
       - name: Confirm live deployment and browser creator workflow
         env:
           FRAMEFIELD_LIVE_URL: https://michaelwave369.github.io/FramefieldStudio/
-          FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
+          FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
         run: npm run test:live
       - name: Preserve live acceptance evidence
         if: always()

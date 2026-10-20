@@ -247,12 +247,15 @@ MIT license, built HTML and all referenced JavaScript/CSS assets.
 
 1. Every PR CI and Pages deployment runs the artifact audit and the existing
    browser regression suite against the *built Vite preview*.
-2. **After this PR merges and Pages deploy finishes**, manually trigger
+2. **After PR #15 merges**, each successful **Deploy GitHub Pages** run
+   automatically triggers **Live v1 Release Acceptance**. It first waits for
+   the live CDN to serve that exact commit (maximum three minutes), then
+   runs Chromium against the *public URL*. It checks deployed SHA, asset loads,
+   console/runtime errors, example JSON import, PNG export and Scene Vault
+   recovery, preserving evidence as a workflow artifact.
+   Maintainers can still manually trigger it through
    **Actions → Live v1 Release Acceptance → Run workflow** on `main`.
-   Its Chromium suite tests the *public GitHub Pages URL* for actual assets,
-   deployed SHA, console/runtime errors, JSON example import and PNG render,
-   and local Scene Vault restoration. It preserves screenshots/reports as an
-   Actions artifact. The workflow fails if the deployed SHA is stale.
+   Stale/malformed deployments fail closed rather than passing against old code.
 
 The [Release Readiness Report](docs/RELEASE_READINESS.md) separates automated
 evidence from the remaining **manual** browser and license/UX reviews. No
@@ -265,6 +268,21 @@ npm run build
 npm run audit:dist
 npm run test:live  # targets the actual deployed public Pages site
 ```
+
+## Automatic post-deploy live acceptance (PR #15)
+
+After a successful GitHub Pages deployment on `main`, the
+**Live v1 Release Acceptance** Actions workflow starts automatically. It
+checks out the exact deployed commit, waits up to three minutes for public
+`release-info.json` to report that revision, and then runs real Chromium
+checks against the live URL. A stale, unreachable, or malformed deployment
+**fails closed**; only the correct revision is accepted. Failed or skipped
+deployments do not trigger a passing audit.
+
+Manual dispatch remains available for targeted audits, and acceptance
+evidence is retained as a workflow artifact. This is *automated deployment
+verification*, **not** a substitute for manual usability, licensing and
+cross-browser reviews before any stable version tag.
 
 ## Roadmap
 
