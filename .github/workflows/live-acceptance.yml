@@ -1,0 +1,41 @@
+name: Live v1 Release Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Expected deployed commit SHA (blank = commit being audited)"
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: framefield-live-audit
+  cancel-in-progress: false
+jobs:
+  live-acceptance:
+    name: Audit deployed GitHub Pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium browser
+        run: npx playwright install --with-deps chromium
+      - name: Confirm live deployment and browser creator workflow
+        env:
+          FRAMEFIELD_LIVE_URL: https://michaelwave369.github.io/FramefieldStudio/
+          FRAMEFIELD_EXPECTED_SHA: ${{ inputs.expected_sha || github.sha }}
+        run: npm run test:live
+      - name: Preserve live acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: framefield-live-acceptance
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

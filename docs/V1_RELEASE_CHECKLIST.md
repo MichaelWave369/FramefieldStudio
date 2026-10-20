@@ -4,6 +4,19 @@ Framefield is an independently implemented MIT browser-based 3D animation
 studio, not an equivalent replacement for Blender. Do not tag v1.0 stable
 until all automated checks and this manual walkthrough have passed.
 
+## Automated evidence and release provenance
+
+- [ ] PR branch: model tests, built Pages-path browser suite, artifact audit green.
+- [ ] After merge: Pages deployment for this exact `main` commit succeeded.
+- [ ] Open `https://michaelwave369.github.io/FramefieldStudio/release-info.json`
+      and compare `commit` with the deployed GitHub Pages build SHA.
+- [ ] Trigger **Actions → Live v1 Release Acceptance** on `main` after deployment.
+      Confirm deployed SHA equality and all live Chromium checks pass.
+- [ ] Download and archive the live acceptance evidence artifact.
+- [ ] Record SHA, test date, tested browser, and reviewer in
+      [RELEASE_READINESS.md](RELEASE_READINESS.md); do not mark unperformed
+      checks complete.
+
 ## Build and integrity
 
 - [ ] Run `npm ci`, `npm test`, `npm run build` on clean checkout.
