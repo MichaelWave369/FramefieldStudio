@@ -48,7 +48,10 @@ After merging the PR:
 2. Open **Actions** and verify the `Deploy GitHub Pages` run.
 3. Visit https://michaelwave369.github.io/FramefieldStudio/
 
-The public URL is a **target**, not a claim that a deployment has already succeeded.
+GitHub Actions has successfully deployed the current v1.0 candidate on `main`;
+the deployed site's **exact revision** can be checked using
+`/FramefieldStudio/release-info.json` after this pull request merges.
+A successful deployment does not mean the manual v1.0 release checks are complete.
 
 ## Project format
 
@@ -233,9 +236,39 @@ runtime data remains local; nothing syncs across browsers or devices.
 - The release remains a **v1.0 candidate** until the live browser/manual
   checklist and version tagging have been reviewed.
 
+## v1.0 live release audit (PR #14)
+
+The production build now stamps `dist/release-info.json` with the
+full Git commit SHA, package version, build timestamp, Pages base path and
+explicit `candidate` phase. `npm run audit:dist` checks the manifest,
+MIT license, built HTML and all referenced JavaScript/CSS assets.
+
+**Two separate acceptance gates:**
+
+1. Every PR CI and Pages deployment runs the artifact audit and the existing
+   browser regression suite against the *built Vite preview*.
+2. **After this PR merges and Pages deploy finishes**, manually trigger
+   **Actions → Live v1 Release Acceptance → Run workflow** on `main`.
+   Its Chromium suite tests the *public GitHub Pages URL* for actual assets,
+   deployed SHA, console/runtime errors, JSON example import and PNG render,
+   and local Scene Vault restoration. It preserves screenshots/reports as an
+   Actions artifact. The workflow fails if the deployed SHA is stale.
+
+The [Release Readiness Report](docs/RELEASE_READINESS.md) separates automated
+evidence from the remaining **manual** browser and license/UX reviews. No
+stable tag is created or implied by this PR.
+
+Commands:
+
+```bash
+npm run build
+npm run audit:dist
+npm run test:live  # targets the actual deployed public Pages site
+```
+
 ## Roadmap
 
-- Vertex/edge/face mesh editing, finer object picking and manipulators
+- Mesh retopology, advanced manipulators and non-destructive face operations
 - Better viewport picking, GPU/WebGL2 rendering, physically based shading and cast shadows
 - Animation track grouping, graph zoom/pan, keyframe retiming and overshoot tangents
 - Model import/export via independently written serializers
