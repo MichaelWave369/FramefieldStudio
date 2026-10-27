@@ -22,12 +22,18 @@ export function createGlbObject(parsed,{fileName,index=0,frame=0,sha256}={}){
   const originalName=String(fileName||'Imported mesh.glb').slice(0,128);
   const cleanName=originalName.replace(/\.glb$/i,'').replace(/[\\/]/g,' ').trim().slice(0,65)||'Imported GLB';
   const base=makeObject('box',index,frame);
-  return {...base,name:cleanName,geometry,glbSource:{
+  // Only the uniform glTF baseColorFactor can survive as a flat CSS color.
+  // Material texture/shader semantics are never imported by this adapter.
+  if (parsed.color !== undefined && parsed.color !== null &&
+      (typeof parsed.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(parsed.color)))
+    throw Error('GLB import: invalid preview color.');
+  return {...base,name:cleanName,color:parsed.color || base.color,geometry,glbSource:{
     fileName:originalName,sha256,description:'Original GLB bytes only; subsequent scene edits are not covered by this digest.'
   }};
 }
 export function prepareGlbImport(buffer,options){
   const parsed=parseStaticGlb(buffer);
   return {object:createGlbObject(parsed,options),
+    previewColor:parsed.color || null,
     warnings:parsed.warnings||[]};
 }
