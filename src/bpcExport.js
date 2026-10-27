@@ -38,7 +38,7 @@ function toTriangles(geometry,label,isPrimitive){
   const positions=vertices.map((v,i)=>vec(v,-LIMIT,LIMIT,label+' vertex '+i));
   const faces=[];
   for(const [fi,f] of inputFaces.entries()){
-    if(!Array.isArray(f)||f.length<3||f.length>16)fail(label+': invalid polygon size at face '+fi+'.');
+    if(!Array.isArray(f)||f.length<3||f.length>(isPrimitive?32:16))fail(label+': invalid polygon size at face '+fi+'.');
     if(f.some(i=>!Number.isInteger(i)||i<0||i>=positions.length)||new Set(f).size!==f.length)
       fail(label+': invalid polygon index at face '+fi+'.');
     // Fan triangulation approximates original Framefield primitive tessellation.

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {demoScene,makeObject,putKey,pose} from '../src/scene.js';
 import {makeBpcXrPacket} from '../src/bpcExport.js';
 const clone=x=>structuredClone(x);
@@ -68,3 +69,14 @@ test('bad cases are rejected without mutating scene',()=>{
   const concave=demoScene();concave.objects[0].geometry={vertices:[[0,0,0],[2,0,0],[1,.5,0],[2,2,0],[0,2,0]],faces:[[0,1,2,3,4]]};
   assert.throws(()=>makeBpcXrPacket(concave),/concave edited face/);
 });
+
+test('native BPC export is visible in creator toolbar without changing JSON-save or requiring BPC website',()=>{
+  const fs=requireShim();
+  assert.match(fs,/onClick=\{exportBpcXr\}/);
+  assert.match(fs,/Export BPC XR/);
+  assert.match(fs,/\.bpc-xr\.json/);
+  assert.match(fs,/function save\(\)/);
+});
+function requireShim(){
+  return readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+}

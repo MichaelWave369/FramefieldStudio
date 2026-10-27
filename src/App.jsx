@@ -19,6 +19,7 @@ import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,fra
 import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
+import {makeBpcXrPacket} from './bpcExport.js';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
 import {hitMoveHandle,axisDragWorldDelta,hitRotateHandle,screenRotationDelta,scaledAxisValue} from './gizmo.js';
 import './style.css';
@@ -391,6 +392,18 @@ export default function App(){
     saveBlob(new Blob([JSON.stringify(scene,null,2)],{type:'application/json'}),filename(scene.name)+'.framefield.json');
     setStatus('Project JSON downloaded');
   }
+  function exportBpcXr(){
+    try{
+      // This is a separate derivative preview, never a replacement for Save JSON.
+      const packet=makeBpcXrPacket(scene);
+      saveBlob(new Blob([JSON.stringify(packet,null,2)],{type:'application/json'}),
+        filename(scene.name)+'.bpc-xr.json');
+      setStatus('BPC XR export ready: '+packet.assets.length+
+        ' visible mesh(es). Open Domistika XR → Load BPC mesh. Native project unchanged.');
+    }catch(error){
+      setStatus('BPC XR export rejected: '+error.message);
+    }
+  }
   async function openFile(e){
     const file=e.target.files?.[0];e.target.value='';if(!file)return;
     try{
@@ -632,6 +645,10 @@ export default function App(){
         <button className="ghost" onClick={openSceneVault}>Scene Vault</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={save}>Save JSON</button>
+        <button className="ghost" onClick={exportBpcXr}
+          title="Download a read-only animated BPC packet for Domistika XR; original Framefield project is unchanged">
+          Export BPC XR
+        </button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
         <button className="primary" onClick={record}>{recording?'■ Stop recording':'● Record WebM'}</button>
         <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={openFile}/>
