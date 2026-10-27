@@ -39,6 +39,38 @@ function accessor(json, binary, index, expectedType, expectedComponent) {
   }
   return out;
 }
+// Convert only the uniform glTF baseColorFactor for Framefield's flat preview.
+// Texture pixels and full PBR semantics are intentionally not decoded or fetched.
+function flatPreviewColor(materials, index) {
+  if (index === undefined) return { color: null, warnings: [] };
+  if (!Number.isInteger(index) || index < 0 || !Array.isArray(materials) ||
+      index >= materials.length) fail('invalid material reference');
+  const material = materials[index];
+  if (!material || typeof material !== 'object' || Array.isArray(material)) fail('invalid material');
+  const pbr = material.pbrMetallicRoughness;
+  if (pbr !== undefined && (!pbr || typeof pbr !== 'object' || Array.isArray(pbr)))
+    fail('invalid PBR material');
+  const factor = pbr?.baseColorFactor ?? [1, 1, 1, 1];
+  if (!Array.isArray(factor) || factor.length !== 4 ||
+      factor.some(n => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1))
+    fail('invalid base color factor');
+  // glTF factors are linear; browser CSS #rrggbb expects sRGB encoding.
+  const channel = linear => Math.round(255 * (linear <= 0.0031308
+    ? 12.92 * linear : 1.055 * Math.pow(linear, 1 / 2.4) - 0.055))
+    .toString(16).padStart(2, '0');
+  const color = '#' + factor.slice(0, 3).map(channel).join('');
+  const warnings = [
+    'Flat preview color approximates glTF baseColorFactor only; original material shading is not preserved.'
+  ];
+  if (pbr?.baseColorTexture || material.normalTexture || material.occlusionTexture ||
+      material.emissiveTexture)
+    warnings.push('Texture maps were not loaded or preserved.');
+  if (factor[3] !== 1 || (material.alphaMode && material.alphaMode !== 'OPAQUE'))
+    warnings.push('Material alpha and transparency were not preserved.');
+  warnings.push('Metalness, roughness, emissive shading, UVs and normals are not preserved.');
+  return { color, warnings };
+}
+
 export function parseStaticGlb(buffer) {
   if (!(buffer instanceof ArrayBuffer)) fail('expected ArrayBuffer');
   if (buffer.byteLength > MAX_BYTES || buffer.byteLength < 20) fail('invalid file size');
@@ -76,15 +108,17 @@ export function parseStaticGlb(buffer) {
   if (!mesh || mesh.primitives?.length !== 1) fail('requires one mesh primitive');
   const primitive = mesh.primitives[0];
   if (primitive.mode !== undefined && primitive.mode !== 4) fail('triangles only');
-  if (primitive.targets || primitive.material !== undefined) fail('morphs and materials not yet supported');
+  if (primitive.targets) fail('morphs not supported');
+  const preview = flatPreviewColor(json.materials, primitive.material);
   const vertices = accessor(json, binary, primitive.attributes?.POSITION, 'VEC3', 5126);
   if (vertices.length > MAX_VERTICES) fail('vertex budget exceeded');
+  if (primitive.indices !== undefined &&
+      ![5121, 5123, 5125].includes(json.accessors?.[primitive.indices]?.componentType))
+    fail('unsupported index component');
   const indices = primitive.indices === undefined
     ? vertices.map((_, i) => i)
     : accessor(json, binary, primitive.indices, 'SCALAR',
-        json.accessors[primitive.indices]?.componentType);
-  if (![5121, 5123, 5125].includes(json.accessors?.[primitive.indices]?.componentType) &&
-      primitive.indices !== undefined) fail('unsupported index component');
+        json.accessors[primitive.indices].componentType);
   if (indices.length % 3 || indices.length / 3 > MAX_FACES) fail('triangle budget exceeded');
   const faces = [];
   for (let i = 0; i < indices.length; i += 3) {
@@ -92,5 +126,9 @@ export function parseStaticGlb(buffer) {
     if (tri.some(n => !Number.isInteger(n) || n >= vertices.length)) fail('invalid triangle index');
     faces.push(tri);
   }
-  return { vertices, faces, warnings: ['Geometry only: materials, textures, UVs, normals, nodes and transforms are not imported.'] };
+  return { vertices, faces, color: preview.color,
+    warnings: [
+      'Geometry-only import: textures, UVs, normals, node transforms and animation are not imported.',
+      ...preview.warnings
+    ] };
 }
