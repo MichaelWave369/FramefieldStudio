@@ -206,7 +206,7 @@ test('material and scene-light settings survive a downloaded project and reload'
   expect(original.lighting.key.intensity).toBe(1.4);
   expect(original.objects[0].material.metalness).toBe(.92);
   await page.getByRole('button',{name:'New',exact:true}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:'studio-round-trip.json',mimeType:'application/json',
     buffer:Buffer.from(JSON.stringify(original))
   });
@@ -280,7 +280,7 @@ test('shot camera and render settings survive JSON project round-trip',async({pa
   expect(data.renderSettings.width).toBe(1280);
   await page.getByRole('button',{name:'New',exact:true}).click();
   await expect(page.getByRole('spinbutton',{name:'Shot distance'})).toHaveValue('9.3');
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:'framefield-render-round-trip.json',mimeType:'application/json',
     buffer:Buffer.from(JSON.stringify(data))
   });
@@ -347,7 +347,7 @@ test('editable mesh saves, loads, and renders without losing animation',async({p
  expect(json.objects[0].geometry.vertices[0][1]).toBe(1.55);
  expect(json.objects[0].keyframes.length).toBe(3);
  await page.getByRole('button',{name:'New',exact:true}).click();
- await page.locator('input[type="file"]').setInputFiles({
+ await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
    name:'mesh-round-trip.json',mimeType:'application/json',
    buffer:Buffer.from(JSON.stringify(json))
  });
@@ -402,7 +402,7 @@ test('face bevel creates chamfer panels and JSON preserves the edited topology f
   expect(data.objects[0].geometry.faces).toHaveLength(10);
   expect(data.objects[0].keyframes).toHaveLength(3);
   await page.getByRole('button',{name:'New',exact:true}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:'face-bevel.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))
   });
   await expect(page.getByRole('option',{name:/Orbit Cube/})).toBeVisible();
@@ -474,7 +474,7 @@ test('mirror modifier welds the center seam; stack order and toggle persist in J
     {type:'subdivide',enabled:true,levels:1},{type:'mirror',enabled:false,axis:2}
   ]);
   await page.getByRole('button',{name:'New',exact:true}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:'modifier-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(original))
   });
   await expect(page.getByRole('combobox',{name:'Mirror 2 axis'})).toHaveValue('2');
@@ -633,7 +633,7 @@ test('downloaded example JSON can be opened and rendered in a new project',async
   const json=await fs.readFile(await download.path());
   await gallery.getByRole('button',{name:'Close starter scenes'}).click();
   await page.getByRole('button',{name:'New',exact:true}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:download.suggestedFilename(),mimeType:'application/json',buffer:json
   });
   await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Product Showcase');
@@ -722,7 +722,7 @@ test('opening imported JSON creates a Scene Vault checkpoint of the preceding pr
   await page.getByRole('textbox',{name:'Project name'}).fill('Before Import');
   const data={version:1,name:'Imported Work',fps:24,duration:120,
     objects:[]};
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:'from-another-machine.json',mimeType:'application/json',
     buffer:Buffer.from(JSON.stringify(data))
   });
