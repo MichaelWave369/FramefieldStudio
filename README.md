@@ -20,6 +20,7 @@ of four projects or download a portable example JSON without affecting your work
 - JSON project save/load (locally), PNG snapshots and browser-supported real-time WebM recording
 - Original starter scenes, in-app guided tour, downloadable example JSON, and explicit local autosave recovery
 - No account, analytics, remote project upload or database
+- Guarded local geometry-only GLB import with explicit SHA-256 review and undoable scene insertion (first increment; see [limits and acceptance](docs/GLB_LOCAL_IMPORT_V01.md))
 
 **Renderer note:** This React port uses a Canvas2D software 3D renderer. The earlier standalone proof-of-concept had a WebGL2 path. A future improvement can migrate GPU rendering behind the same pure scene model. This is not Blender feature parity: geometry editing is limited, and there is no sculpting, UVs, rigging or GPU ray tracing yet.
 
