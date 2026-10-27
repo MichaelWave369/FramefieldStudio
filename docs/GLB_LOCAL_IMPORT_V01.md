@@ -1,4 +1,4 @@
-# Guarded local GLB import — geometry-only first increment
+# Guarded local GLB import — static geometry and flat-color preview
 
 **Status:** integration candidate, not general glTF compatibility or release qualification.
 
@@ -19,33 +19,42 @@ not of subsequent geometry edits.
 - Float32 VEC3 positions and absent or unsigned integer triangle indices
 - Up to 16 MiB of source bytes, 800 vertices, 1,200 triangle faces
 - An editable static mesh and Framefield-native position/rotation/scale keyframes
+- Optional single glTF material reference: `pbrMetallicRoughness.baseColorFactor` mapped
+  from linear RGB to one approximate sRGB flat color. No full PBR interpretation.
 - Local project JSON save/open and undo/redo
 
 ## Rejected / not preserved
 
-- Multiple meshes or primitives, lines/points, material-bound primitives
-- PBR materials, textures, UVs, normals, authored glTF animations, skeletal rigging, morph targets
+- Multiple meshes or primitives, lines/points, missing/out-of-range material indices
+- Full PBR shading, texture maps, UVs, normals, authored glTF animations, skeletal rigging,
+  morph targets, transparency and shader extensions (texture/shader data is not fetched or preserved)
 - Node translation, rotation, scale, and matrices (reject instead of silently losing transforms)
 - Sparse accessors, interleaved buffer views, missing/out-of-range indices, invalid geometry
 - Over-budget meshes and invalid or zero-area triangles
 
 The current Canvas2D renderer is not a photorealistic or full glTF renderer. This is **not**
 verified compatibility with arbitrary PixelForge outputs, Fab assets, UE-exported material
-stacks, or Quest 3 performance.
+stacks, or Quest 3 performance. A test material color is **not** a claim that UVs,
+textures or Unreal materials survived. External image URIs are never fetched.
 
 ## Small manual acceptance
 
 1. Save current Framefield project JSON, then open **Import GLB**.
-2. Select a small, rights-cleared geometry-only GLB. Confirm the SHA-256 fingerprint, name,
-   triangle count, and limitations shown in the review dialog.
+2. Select a small, rights-cleared static GLB (optionally with a single material).
+   Confirm the SHA-256 fingerprint, name, triangle count, preview flat color
+   and limitations shown in the review dialog.
 3. Cancel and verify the scene is unchanged. Reopen and choose **Add mesh to scene**.
 4. Verify the mesh is visible, independently selectable, editable, and transform-keyframe
    animatable. Undo and Redo the import.
 5. Save project JSON, reload, verify `glbSource` retains the original source digest.
-6. Test a malformed GLB, materials-bearing GLB, transformed-node GLB, and oversized file:
-   errors must be surfaced without changing the scene.
-7. Export **BPC XR** and load into Domistika only when within its additional device
-   budgets. Physical Quest 3 validation is a separate acceptance gate.
+6. Test an invalid material index / invalid baseColorFactor, transformed-node GLB,
+   malformed GLB and oversized file: errors must be surfaced without changing
+   the scene. Material-bound test fixtures with valid baseColorFactor can import,
+   but their textures/shaders must be explicitly disclosed as unsupported.
+7. The automated synthetic contract test passes static material-bound GLB geometry
+   through Framefield save/reload and animated `makeBpcXrPacket`.
+   Independently export **BPC XR** and load into Domistika on a real headset
+   only when within device budgets. Physical Quest 3 validation is a separate gate.
 
 ## Rights and provenance
 
