@@ -694,7 +694,8 @@ export default function App(){
         </button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
         <button className="primary" onClick={record}>{recording?'■ Stop recording':'● Record WebM'}</button>
-        <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={openFile}/>
+        <input ref={fileRef} hidden type="file" accept=".json,application/json"
+          aria-label="Choose a Framefield JSON project" onChange={openFile}/>
         <input ref={glbFileRef} hidden type="file" accept=".glb,model/gltf-binary"
           aria-label="Choose a local GLB mesh" onChange={chooseGlbFile}/>
       </div>
