@@ -20,6 +20,8 @@ import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
 import {makeBpcXrPacket} from './bpcExport.js';
+import {MAX_GLB_BYTES,prepareGlbImport} from './glbImport.js';
+import GlbImportDialog from './GlbImportDialog.jsx';
 import {initialHistory,commitHistory,amendHistory,undoHistory,redoHistory} from './history.js';
 import {hitMoveHandle,axisDragWorldDelta,hitRotateHandle,screenRotationDelta,scaledAxisValue} from './gizmo.js';
 import './style.css';
@@ -68,8 +70,9 @@ export default function App(){
   const cancelExport=useRef(false);
   const [status,setStatus]=useState('Ready to animate.');
   const [recording,setRecording]=useState(false);
+  const [glbCandidate,setGlbCandidate]=useState(null);
   const canvasRef=useRef(null),picker=useRef([]),pickFaces=useRef([]),
-    handles=useRef([]),drag=useRef(null),fileRef=useRef(null),recorder=useRef(null);
+    handles=useRef([]),drag=useRef(null),fileRef=useRef(null),glbFileRef=useRef(null),recorder=useRef(null);
   const selected=useMemo(()=>scene.objects.find(o=>o.id===selectedId)||null,[scene,selectedId]);
   const selectedPose=selected?atFrame(selected,frame):null;
   const [sizeVersion,setSizeVersion]=useState(0);
@@ -404,6 +407,39 @@ export default function App(){
       setStatus('BPC XR export rejected: '+error.message);
     }
   }
+  async function chooseGlbFile(e){
+    const file=e.target.files?.[0];
+    e.target.value='';
+    if(!file)return;
+    setGlbCandidate(null);
+    try{
+      if(!/\.glb$/i.test(file.name))throw Error('Choose a local .glb file.');
+      if(file.size<20||file.size>MAX_GLB_BYTES)
+        throw Error('GLB must be 20 bytes to 16 MiB.');
+      if(scene.objects.length>=100)throw Error('Scene already contains 100 objects.');
+      if(!globalThis.crypto?.subtle)throw Error('SHA-256 unavailable; use a secure browser context.');
+      const bytes=await file.arrayBuffer();
+      const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes);
+      const sha256=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+      const prepared=prepareGlbImport(bytes,{fileName:file.name,index:scene.objects.length,frame,sha256});
+      setGlbCandidate({...prepared,byteLength:bytes.byteLength});
+      setStatus('GLB inspected locally. Confirm in the review dialog to add it.');
+    }catch(error){setStatus('GLB import rejected: '+error.message);}
+  }
+  function confirmGlbImport(){
+    if(!glbCandidate)return;
+    if(scene.objects.length>=100){setGlbCandidate(null);setStatus('Scene limit: 100 objects.');return;}
+    const object=glbCandidate.object;
+    setScene(s=>s.objects.length>=100?s:{...s,objects:[...s.objects,object]});
+    setSelectedId(object.id);
+    setMeshMode('object');
+    setMeshSelection(0);
+    setInspectorTab('object');
+    setPreviewShot(false);
+    setPlaying(false);
+    setGlbCandidate(null);
+    setStatus('Imported '+object.name+' · original SHA-256 recorded · Undo available');
+  }
   async function openFile(e){
     const file=e.target.files?.[0];e.target.value='';if(!file)return;
     try{
@@ -627,6 +663,11 @@ export default function App(){
       onProceed={()=>{const action=replacementWarning.action;
         setReplacementWarning(null);action();}}/>}
 
+    {glbCandidate&&!recovery&&!replacementWarning&&<GlbImportDialog
+      candidate={glbCandidate}
+      onConfirm={confirmGlbImport}
+      onCancel={()=>{setGlbCandidate(null);setStatus('GLB import cancelled · scene unchanged');}}/>}
+
     <header className="topbar">
       <div className="brand"><div className="mark">F<span>✦</span></div><div><strong>FRAMEFIELD</strong><small>STUDIO / React v1.0 candidate</small></div></div>
       <div className="project-meta"><input aria-label="Project name" value={scene.name}
@@ -644,6 +685,8 @@ export default function App(){
         <button className="ghost" onClick={()=>setGuideOpen(true)}>Quick Start</button>
         <button className="ghost" onClick={openSceneVault}>Scene Vault</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
+        <button className="ghost" onClick={()=>glbFileRef.current?.click()}
+          title="Review and add one local static GLB mesh; no upload">Import GLB</button>
         <button className="ghost" onClick={save}>Save JSON</button>
         <button className="ghost" onClick={exportBpcXr}
           title="Download a read-only animated BPC packet for Domistika XR; original Framefield project is unchanged">
@@ -651,7 +694,10 @@ export default function App(){
         </button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
         <button className="primary" onClick={record}>{recording?'■ Stop recording':'● Record WebM'}</button>
-        <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={openFile}/>
+        <input ref={fileRef} hidden type="file" accept=".json,application/json"
+          aria-label="Choose a Framefield JSON project" onChange={openFile}/>
+        <input ref={glbFileRef} hidden type="file" accept=".glb,model/gltf-binary"
+          aria-label="Choose a local GLB mesh" onChange={chooseGlbFile}/>
       </div>
     </header>
     <main className="workspace">

@@ -53,7 +53,7 @@ test('starter project JSON can be downloaded, reimported, and rendered as PNG',a
   const data=await readFile(await sample.path());
   expect(JSON.parse(data.toString()).name).toBe('Turntable Study');
   await gallery.getByRole('button',{name:'Close starter scenes'}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.getByLabel('Choose a Framefield JSON project').setInputFiles({
     name:sample.suggestedFilename(),mimeType:'application/json',buffer:data});
   await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Turntable Study');
   const pngEvent=page.waitForEvent('download');

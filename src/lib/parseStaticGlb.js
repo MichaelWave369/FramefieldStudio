@@ -64,6 +64,12 @@ export function parseStaticGlb(buffer) {
       json.extensionsRequired?.length || json.buffers?.length !== 1 ||
       json.buffers[0].uri !== undefined || json.buffers[0].byteLength > binary.byteLength)
     fail('unsupported GLB document');
+  if (json.nodes !== undefined && !Array.isArray(json.nodes))
+    fail('invalid nodes');
+  if (json.nodes?.some(n => !n || typeof n !== 'object' ||
+        n.matrix !== undefined || n.translation !== undefined ||
+        n.rotation !== undefined || n.scale !== undefined))
+    fail('node transforms are not supported');
   if (json.nodes?.some(n => n.skin !== undefined) || json.skins?.length || json.animations?.length)
     fail('rigging and glTF animation not supported');
   const mesh = json.meshes?.length === 1 ? json.meshes[0] : null;
