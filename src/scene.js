@@ -138,9 +138,22 @@ export function validateProject(raw) {
     const geometry=o.geometry!==undefined?validateMesh(o.geometry):undefined;
     const modifiers=sanitizeModifiers(o.modifiers);
     if(modifiers.some(mod=>mod.enabled))evaluateModifiers({type:o.type,geometry,modifiers});
+    // Source provenance is informational: it identifies original imported bytes,
+    // not the mesh after editing. Never trust unchecked saved-project metadata.
+    let glbSource;
+    if(o.glbSource!==undefined){
+      const src=o.glbSource;
+      if(!src||typeof src!=='object'||Array.isArray(src)||
+        typeof src.sha256!=='string'||!(/^[a-f0-9]{64}$/).test(src.sha256)||
+        typeof src.fileName!=='string'||src.fileName.length>128)
+        throw Error('Invalid original GLB source evidence at object '+(i+1));
+      glbSource={fileName:src.fileName,sha256:src.sha256,
+        description:'Original GLB bytes only; subsequent scene edits are not covered by this digest.'};
+    }
     return {id:id(),type:o.type,name:String(o.name||'Shape '+(i+1)).slice(0,65),
       color:/^#[0-9a-f]{6}$/i.test(o.color)?o.color:'#9991ff',material:sanitizeMaterial(o.material),visible:o.visible!==false,
       ...(geometry?{geometry}:{}),...(modifiers.length?{modifiers}:{}),
+      ...(glbSource?{glbSource}:{}),
       keyframes:[...unique.values()].sort((a,b)=>a.frame-b.frame)};
   });
   return {version:1,name:String(raw.name||'Imported Scene').slice(0,80),
