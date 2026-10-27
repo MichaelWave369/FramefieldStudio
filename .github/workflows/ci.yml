@@ -29,7 +29,12 @@ jobs:
   browser-compatibility:
     name: Cross-browser creator workflow (${{ matrix.browser }})
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # Browser binaries and Ubuntu dependencies are already in this version-pinned image.
+    # Avoid the slow apt-mirror installs that previously exhausted the 12-minute job limit.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -43,8 +48,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Build Pages-path studio
         run: npm run build
-      - name: Install browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Verify pinned Playwright runtime
+        run: test "$(npx playwright --version)" = "Version 1.64.1"
       - name: Validate real editing, import, and rendering workflows
         run: npx playwright test -c playwright.compat.config.js --project ${{ matrix.browser }} --max-failures=1
       - name: Preserve compatibility test failures

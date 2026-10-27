@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseStaticGlb } from '../src/lib/parseStaticGlb.js';
+import {createHash} from 'node:crypto';
+import {prepareGlbImport} from '../src/glbImport.js';
+import {makeBpcXrPacket} from '../src/bpcExport.js';
+import {demoScene,pose,putKey,validateProject} from '../src/scene.js';
 function glb(positions, indices = null, extra = {}) {
   const bytes = new Uint8Array(positions.length * 4 + (indices?.length ?? 0) * 2);
   const dv = new DataView(bytes.buffer);
@@ -61,4 +65,52 @@ test('rejects GLB node transforms instead of silently dropping them', () => {
 test('rejects malformed non-array GLB nodes', () => {
   assert.throws(() => parseStaticGlb(glb(triangle, null,
     {nodes:{mesh:0}})), /invalid nodes/);
+});
+
+function materialBoundTriangle(extra = {}) {
+  return glb(triangle, [0,1,2], {
+    materials:[{pbrMetallicRoughness:{baseColorFactor:[1,.5,0,1],baseColorTexture:{index:0}}}],
+    textures:[{source:0}],
+    images:[{uri:'https://example.invalid/should-never-fetch.png'}],
+    meshes:[{primitives:[{attributes:{POSITION:0},indices:1,material:0}]}],
+    ...extra
+  });
+}
+
+test('imports material-bound glTF as explicit flat-color approximation without fetching textures', () => {
+  const preview=parseStaticGlb(materialBoundTriangle());
+  assert.equal(preview.color,'#ffbc00');
+  assert.deepEqual(preview.faces,[[0,1,2]]);
+  assert.match(preview.warnings.join(' '),/Texture maps were not loaded/i);
+  assert.match(preview.warnings.join(' '),/Flat preview color approximates/i);
+});
+test('rejects out-of-range material references rather than silently substituting colors', () => {
+  const binary=materialBoundTriangle({
+    meshes:[{primitives:[{attributes:{POSITION:0},indices:1,material:7}]}]
+  });
+  assert.throws(()=>parseStaticGlb(binary),/invalid material reference/);
+});
+test('rejects malformed or nonfinite baseColorFactor', () => {
+  const binary=materialBoundTriangle({
+    materials:[{pbrMetallicRoughness:{baseColorFactor:[1,2,0,1]}}]
+  });
+  assert.throws(()=>parseStaticGlb(binary),/invalid base color factor/);
+});
+test('synthetic material-bound GLB passes Framefield save/load and animated BPC XR export', () => {
+  const input=materialBoundTriangle();
+  const sha256=createHash('sha256').update(Buffer.from(input)).digest('hex');
+  const imported=prepareGlbImport(input,{fileName:'pixel-compatible-static.glb',index:0,frame:0,sha256});
+  assert.equal(imported.object.color,'#ffbc00');
+  const moving=putKey(imported.object,30,pose([1,2,3],[0,45,0],[1,1,1]));
+  const project={...demoScene(),objects:[moving]};
+  const reopened=validateProject(JSON.parse(JSON.stringify(project)));
+  assert.equal(reopened.objects[0].glbSource.sha256,sha256);
+  const packet=makeBpcXrPacket(reopened);
+  assert.equal(packet.schema,'bpc.spatial-preview.v1');
+  assert.equal(packet.assets[0].color,'#ffbc00');
+  assert.deepEqual(packet.assets[0].mesh.faces,[[0,1,2]]);
+  assert.equal(packet.assets[0].keyframes.length,2);
+  assert.equal(packet.assets[0].keyframes[1].frame,30);
+  assert.ok(Math.abs(packet.assets[0].keyframes[1].rotationRadians[1]-Math.PI/4)<1e-10);
+  assert.equal(packet.permissions.publish,false);
 });
