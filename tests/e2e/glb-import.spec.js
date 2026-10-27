@@ -14,6 +14,9 @@ function triangleGlb(){
     accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3'}],
     meshes:[{primitives:[{attributes:{POSITION:0}}]}]
   };
+  // Mimic the common material-bound, single-mesh GLB layout.
+  doc.materials=[{pbrMetallicRoughness:{baseColorFactor:[1,.5,0,1]}}];
+  doc.meshes[0].primitives[0].material=0;
   const text=Buffer.from(JSON.stringify(doc));
   const json=Buffer.alloc(Math.ceil(text.length/4)*4,32);
   text.copy(json);
@@ -45,6 +48,7 @@ test('GLB import reviews original bytes, cancels safely, adds undoably and persi
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(digest);
   await expect(dialog).toContainText('3 vertices');
+  await expect(dialog).toContainText('#ffbc00');
   await dialog.getByRole('button',{name:/Cancel/}).click();
   await expect(page.getByText('2 objects')).toBeVisible();
 
@@ -61,6 +65,7 @@ test('GLB import reviews original bytes, cancels safely, adds undoably and persi
   const imported=project.objects.find(o=>o.name==='review-triangle');
   expect(imported.geometry.faces).toEqual([[0,1,2]]);
   expect(imported.glbSource.sha256).toBe(digest);
+  expect(imported.color).toBe('#ffbc00');
 
   await page.getByRole('button',{name:/Undo/}).click();
   await expect(page.getByText('2 objects')).toBeVisible();
