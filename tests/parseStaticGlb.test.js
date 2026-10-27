@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseStaticGlb } from '../src/lib/parseStaticGlb.js';
-function glb(positions, indices = null) {
+function glb(positions, indices = null, extra = {}) {
   const bytes = new Uint8Array(positions.length * 4 + (indices?.length ?? 0) * 2);
   const dv = new DataView(bytes.buffer);
   positions.forEach((n, i) => dv.setFloat32(i * 4, n, true));
@@ -17,6 +17,7 @@ function glb(positions, indices = null) {
     json.bufferViews.push({ buffer: 0, byteOffset: positions.length * 4, byteLength: indices.length * 2 });
     json.accessors.push({ bufferView: 1, componentType: 5123, count: indices.length, type: 'SCALAR' });
   }
+  Object.assign(json, extra);
   const encoded = new TextEncoder().encode(JSON.stringify(json));
   const jsonLength = Math.ceil(encoded.length / 4) * 4;
   const binLength = Math.ceil(bytes.length / 4) * 4;
@@ -51,4 +52,13 @@ test('rejects invalid header', () => {
 });
 test('rejects source vertex budget overflow', () => {
   assert.throws(() => parseStaticGlb(glb(Array(801 * 3).fill(0))), /vertex budget/);
+});
+
+test('rejects GLB node transforms instead of silently dropping them', () => {
+  assert.throws(() => parseStaticGlb(glb(triangle, null,
+    {nodes:[{mesh:0,translation:[2,0,0]}]})), /node transforms/);
+});
+test('rejects malformed non-array GLB nodes', () => {
+  assert.throws(() => parseStaticGlb(glb(triangle, null,
+    {nodes:{mesh:0}})), /invalid nodes/);
 });
