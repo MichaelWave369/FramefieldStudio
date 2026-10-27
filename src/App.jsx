@@ -413,7 +413,7 @@ export default function App(){
     if(!file)return;
     setGlbCandidate(null);
     try{
-      if(!/\\.glb$/i.test(file.name))throw Error('Choose a local .glb file.');
+      if(!/\.glb$/i.test(file.name))throw Error('Choose a local .glb file.');
       if(file.size<20||file.size>MAX_GLB_BYTES)
         throw Error('GLB must be 20 bytes to 16 MiB.');
       if(scene.objects.length>=100)throw Error('Scene already contains 100 objects.');
