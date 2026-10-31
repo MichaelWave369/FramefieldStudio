@@ -53,7 +53,10 @@ test('published creator can export example, import it and render an actual PNG',
   const source=JSON.parse(bytes.toString('utf8'));
   expect(source.name).toBe('Bouncing Ball');
   await dialog.getByRole('button',{name:'Close starter scenes'}).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  // Select the JSON project picker explicitly; the studio also has a GLB picker.
+  const projectPicker=page.getByLabel('Choose a Framefield JSON project');
+  await expect(projectPicker).toHaveCount(1);
+  await projectPicker.setInputFiles({
     name:sample.suggestedFilename(),mimeType:'application/json',buffer:bytes});
   await expect(page.getByRole('textbox',{name:'Project name'})).toHaveValue('Bouncing Ball');
   const pngDownload=page.waitForEvent('download');
