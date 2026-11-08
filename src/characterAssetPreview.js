@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {advanceCharacterTime,frameToSeconds,MAX_CLIP_SECONDS} from './characterTimeline.js';
+import {MAX_MORPH_CONTROLS,clampMorphWeight} from './characterPosePack.js';
 
 function disposeAsset(root){
   const geometries=new Set(),materials=new Set(),textures=new Set(),skeletons=new Set();
@@ -74,6 +75,61 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
     controls.target.set(0,0,0);
     controls.update();
 
+    // Character expression targets are identified by traversal order and target
+    // index. Bookmarks are locked to the exact source GLB SHA-256, not the mesh name.
+    const morphTargets=[],morphBindings=new Map(),morphDefaults=new Map();
+    let meshIndex=0;
+    gltf.scene.traverse(node=>{
+      if(!node.isMesh)return;
+      const slot=meshIndex++;
+      const weights=node.morphTargetInfluences;
+      if(!Array.isArray(weights)||!weights.length)return;
+      const dictionary=node.morphTargetDictionary||{};
+      const targetNames=new Map(Object.entries(dictionary).map(([name,index])=>[index,name]));
+      for(let index=0;index<weights.length;index++){
+        if(morphTargets.length>=MAX_MORPH_CONTROLS)
+          throw Error('Character Lab: too many expression targets (64 maximum)');
+        const id=slot+':'+index;
+        const label=targetNames.get(index)||'Target '+(index+1);
+        morphBindings.set(id,{node,index});
+        morphDefaults.set(id,weights[index]);
+        morphTargets.push({id,label:meshIndex===1?label:(node.name||'Mesh '+(slot+1))+' / '+label});
+      }
+    });
+    const morphOverrides=new Map();
+    function baseMorphs(){
+      for(const [id,binding] of morphBindings)
+        binding.node.morphTargetInfluences[binding.index]=morphDefaults.get(id);
+    }
+    function applyMorphs(){
+      for(const [id,value] of morphOverrides){
+        const target=morphBindings.get(id);
+        if(target)target.node.morphTargetInfluences[target.index]=value;
+      }
+    }
+    function setMorphWeight(id,weight){
+      if(!morphBindings.has(id))throw Error('Character Lab: unknown expression target');
+      const value=clampMorphWeight(weight);
+      morphOverrides.set(id,value);
+      applyMorphs();
+      return value;
+    }
+    function setMorphValues(raw){
+      if(!raw||typeof raw!=='object'||Array.isArray(raw))
+        throw Error('Character Lab: invalid expression values');
+      const entries=Object.entries(raw);
+      if(entries.length>MAX_MORPH_CONTROLS)throw Error('Character Lab: too many expressions');
+      if(entries.some(([id,value])=>!morphBindings.has(id)||
+        typeof value!=='number'||!Number.isFinite(value)||value<0||value>1))
+        throw Error('Character Lab: invalid expression target or weight');
+      morphOverrides.clear();
+      for(const [id,value] of entries)morphOverrides.set(id,value);
+      // A bookmarked pose restores the authored animation before applying
+      // overrides. This prevents stale smile/blink values from leaking.
+      baseMorphs();
+      if(action)sampleTime(playheadSeconds);
+      applyMorphs();
+    }
     const mixer=new THREE.AnimationMixer(gltf.scene);
     const clips=gltf.animations||[];
     for(const clip of clips){
@@ -87,7 +143,9 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
       playheadSeconds=Math.max(0,Math.min(duration,seconds));
       // Three's LoopRepeat wraps at the exact endpoint; sample infinitesimally
       // before the boundary so the last frame does not jump back to frame zero.
+      baseMorphs();
       mixer.setTime(Math.min(playheadSeconds,Math.max(0,duration-1e-5)));
+      applyMorphs();
       return playheadSeconds;
     }
     function selectClip(index){
@@ -161,7 +219,9 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
         meshes:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isMesh)count++;});return count;})(),
         bones:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isBone)count++;});return count;})()
       },
-      selectClip,setPlaying,seekFrame,setLoop,
+      selectClip,setPlaying,seekFrame,setLoop,setMorphWeight,setMorphValues,
+      morphTargets,
+      getMorphValues:()=>Object.fromEntries(morphOverrides),
       async capturePng(){
         if(disposed)throw Error('Character Lab: preview is closed');
         // Preserve the selected pose; capture remains local and never edits JSON.

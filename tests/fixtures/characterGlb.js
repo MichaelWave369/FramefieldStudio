@@ -13,7 +13,7 @@ const uint16Bytes=nums=>{
   nums.forEach((n,i)=>b.writeUInt16LE(n,i*2));
   return b;
 };
-export function makeCharacterGlb({externalImage=false,skin=true}={}){
+export function makeCharacterGlb({externalImage=false,skin=true,morph=false}={}){
   const parts=[],views=[];
   let byteLength=0;
   const insert=bytes=>{
@@ -29,6 +29,9 @@ export function makeCharacterGlb({externalImage=false,skin=true}={}){
   const uvs=insert(floatBytes([0,0,1,0,.5,1]));
   const timeView=insert(floatBytes([0,1]));
   const translate=insert(floatBytes([0,0,0, 1.8,0,0]));
+  // Original mesh blendshape: shift the upper-right region for a visible
+  // test of morph expression weights. GLTFLoader names it from extras.
+  const morphView=morph?insert(floatBytes([0,0,0, .4,.7,0, 0,0,0])):null;
   const imageView=insert(PNG);
   let jointView,weightView,inverseView;
   if(skin){
@@ -46,6 +49,12 @@ export function makeCharacterGlb({externalImage=false,skin=true}={}){
     {bufferView:translate,componentType:5126,type:'VEC3',count:2}
   ];
   const attributes={POSITION:0,TEXCOORD_0:1};
+  let morphAccessor=null;
+  if(morph){
+    morphAccessor=accessors.length;
+    accessors.push({bufferView:morphView,componentType:5126,type:'VEC3',count:3,
+      min:[0,0,0],max:[.4,.7,0]});
+  }
   if(skin){
     attributes.JOINTS_0=accessors.length;
     accessors.push({bufferView:jointView,componentType:5123,type:'VEC4',count:3});
@@ -68,7 +77,11 @@ export function makeCharacterGlb({externalImage=false,skin=true}={}){
     textures:[{source:0}],
     materials:[{name:'TestFabric',pbrMetallicRoughness:{
       baseColorTexture:{index:0},metallicFactor:0,roughnessFactor:.65}}],
-    meshes:[{primitives:[{attributes,material:0}]}],
+    meshes:[{
+      primitives:[{attributes,material:0,
+        ...(morph?{targets:[{POSITION:morphAccessor}]}:{})}],
+      ...(morph?{weights:[0],extras:{targetNames:['Smile']}}:{})
+    }],
     nodes,scenes:[{nodes:nodes.map((_,i)=>i)}],scene:0,
     animations:[{name:'StepSideways',samplers:[{input:2,output:3,interpolation:'LINEAR'}],
       channels:[{sampler:0,target:{node:0,path:'translation'}}]}],

@@ -243,3 +243,18 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .character-lab-loop{display:flex!important;align-items:center;gap:6px;min-width:0!important}
 .character-lab-loop input{accent-color:#9c98ff}
 .character-lab-message{font-size:12px;color:#a9efce}
+
+/* Phase 1E: source morph expression controls and named pose pack bookmarks. */
+.character-expression-row{display:grid;grid-template-columns:minmax(96px,1fr) minmax(110px,2fr) 48px;
+  align-items:center;gap:8px;min-width:0;font-size:12px}
+.character-expression-row input[type=range]{width:100%;padding:0;min-width:0;accent-color:#a89bff}
+.character-expression-row span{text-align:right;font-variant-numeric:tabular-nums}
+.character-lab-pose-editor{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.character-lab-pose-editor>input{min-width:150px;flex:1}
+.character-lab-pose-editor>label{display:grid;gap:5px;flex:1;min-width:150px}
+.character-lab-pose-editor>label input{max-width:100%;font-size:11px}
+.character-lab-pose-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  padding:8px 0;border-top:1px solid #2f4562;font-size:11px}
+.character-lab-pose-row span{flex:1;min-width:150px;overflow-wrap:anywhere}
+.character-lab-pose-row button{font-size:11px}
+@media(max-width:600px){.character-expression-row{grid-template-columns:1fr 1fr 36px}}
