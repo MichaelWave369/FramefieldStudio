@@ -231,3 +231,15 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .character-lab-error{color:#ffc8bd;background:#4d2533;border:1px solid #a65762;
   border-radius:8px;padding:10px;overflow-wrap:anywhere}
 @media(max-width:670px){.character-lab-dialog{padding:14px}.character-lab-stage{height:270px}}
+
+/* Character Motion Studio: deterministic local clip timeline and still capture. */
+.character-lab-timeline{display:grid;gap:10px;padding:12px;
+  border:1px solid #37516f;border-radius:9px;background:#0e2237}
+.character-lab-timeline>label{font-weight:700;font-variant-numeric:tabular-nums}
+.character-lab-timeline input[type=range]{width:100%;min-width:0;padding:0;
+  accent-color:#9c98ff;cursor:pointer}
+.character-lab-timeline-actions{display:flex;gap:6px;flex-wrap:wrap}
+.character-lab-timeline-actions button{font-size:11px}
+.character-lab-loop{display:flex!important;align-items:center;gap:6px;min-width:0!important}
+.character-lab-loop input{accent-color:#9c98ff}
+.character-lab-message{font-size:12px;color:#a9efce}
