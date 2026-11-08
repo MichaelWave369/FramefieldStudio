@@ -19,7 +19,6 @@ test('GPU disabled by the browser returns to Canvas2D without project data loss'
   await page.getByRole('button',{name:'GPU Preview'}).click();
   await expect(page.getByRole('status')).toContainText('GPU preview unavailable');
   await expect(page.getByRole('button',{name:'GPU Preview'})).toHaveAttribute('aria-pressed','false');
-  const editor=page.getByRole('img',{name:'Not an expected label'});
   // The real editor canvas must be restored and still draw opaque pixels.
   const canvas=page.locator('canvas[aria-label="Interactive 3D viewport"]');
   await expect(canvas).toBeVisible();
