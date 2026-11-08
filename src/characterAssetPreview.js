@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {advanceCharacterTime,frameToSeconds,MAX_CLIP_SECONDS} from './characterTimeline.js';
 
 function disposeAsset(root){
   const geometries=new Set(),materials=new Set(),textures=new Set(),skeletons=new Set();
@@ -21,13 +22,14 @@ function disposeAsset(root){
   for(const item of textures)item.dispose();
 }
 
-export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{}){
+export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},onProgress=()=>{}){
   const loader=new GLTFLoader();
   // Preflight excludes external buffers and images; the empty resource base is deliberate.
   const gltf=await new Promise((resolve,reject)=>loader.parse(buffer,'',resolve,reject));
   let renderer=null,controls=null,disposed=false,raf=0,resizeObserver=null;
   try{
-    renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'default'});
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'default',
+      preserveDrawingBuffer:true});
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure=1.15;
@@ -74,25 +76,50 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{})
 
     const mixer=new THREE.AnimationMixer(gltf.scene);
     const clips=gltf.animations||[];
-    let action=null,playing=false,selectedClip=-1;
+    for(const clip of clips){
+      if(!Number.isFinite(clip.duration)||clip.duration<=0||clip.duration>MAX_CLIP_SECONDS)
+        throw Error('Character Lab: animation duration exceeds 300 seconds or is invalid');
+    }
+    let action=null,playing=false,selectedClip=-1,playheadSeconds=0,loop=true;
+    function sampleTime(seconds){
+      if(!action)return 0;
+      const duration=clips[selectedClip].duration;
+      playheadSeconds=Math.max(0,Math.min(duration,seconds));
+      // Three's LoopRepeat wraps at the exact endpoint; sample infinitesimally
+      // before the boundary so the last frame does not jump back to frame zero.
+      mixer.setTime(Math.min(playheadSeconds,Math.max(0,duration-1e-5)));
+      return playheadSeconds;
+    }
     function selectClip(index){
       if(!Number.isInteger(index)||index<0||index>=clips.length){
-        action?.stop();
-        action=null;selectedClip=-1;playing=false;return;
+        mixer.stopAllAction();
+        action=null;selectedClip=-1;playing=false;playheadSeconds=0;
+        onProgress(0,false);
+        return;
       }
       mixer.stopAllAction();
-      mixer.setTime(0);
       selectedClip=index;
       action=mixer.clipAction(clips[index]);
-      action.reset().play();
+      action.reset().setLoop(THREE.LoopRepeat,Infinity).play();
       playing=false;
-      mixer.update(0);
+      sampleTime(0);
+      onProgress(0,false);
     }
     function setPlaying(next){
       if(!action)return false;
+      if(next&&playheadSeconds>=clips[selectedClip].duration)sampleTime(0);
       playing=Boolean(next);
+      onProgress(playheadSeconds,playing);
       return playing;
     }
+    function seekFrame(frame,fps){
+      if(!action)return 0;
+      playing=false;
+      sampleTime(frameToSeconds(frame,clips[selectedClip].duration,fps));
+      onProgress(playheadSeconds,false);
+      return playheadSeconds;
+    }
+    function setLoop(value){loop=Boolean(value);}
     if(clips.length)selectClip(0);
     function resize(){
       const rect=canvas.getBoundingClientRect();
@@ -110,7 +137,12 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{})
       if(disposed)return;
       const delta=last?Math.min((t-last)/1000,.05):0;
       last=t;
-      if(playing)mixer.update(delta);
+      if(playing&&action){
+        const advance=advanceCharacterTime(playheadSeconds,delta,clips[selectedClip].duration,loop);
+        sampleTime(advance.seconds);
+        playing=advance.playing;
+        onProgress(playheadSeconds,playing);
+      }
       controls.update();
       renderer.render(scene,camera);
       raf=requestAnimationFrame(tick);
@@ -129,7 +161,15 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{})
         meshes:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isMesh)count++;});return count;})(),
         bones:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isBone)count++;});return count;})()
       },
-      selectClip,setPlaying,
+      selectClip,setPlaying,seekFrame,setLoop,
+      async capturePng(){
+        if(disposed)throw Error('Character Lab: preview is closed');
+        // Preserve the selected pose; capture remains local and never edits JSON.
+        renderer.render(scene,camera);
+        return new Promise((resolve,reject)=>{
+          canvas.toBlob(blob=>blob?resolve(blob):reject(Error('PNG capture failed')),'image/png');
+        });
+      },
       dispose(){
         if(disposed)return;
         disposed=true;
