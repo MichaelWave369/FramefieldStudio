@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 import React,{useEffect,useRef} from 'react';
 
-export default function GpuPreview({scene,frame,camera,onError}){
-  const canvasRef=useRef(null),viewport=useRef(null),latest=useRef(null),errorRef=useRef(onError);
+export default function GpuPreview({scene,frame,camera,onReady,onError}){
+  const canvasRef=useRef(null),viewport=useRef(null),latest=useRef(null),
+    errorRef=useRef(onError),readyRef=useRef(onReady);
   latest.current={project:scene,frame,camera};
   errorRef.current=onError;
+  readyRef.current=onReady;
   useEffect(()=>{
     let cancelled=false,view=null;
     import('./gpuViewport.js').then(({createGpuViewport})=>{
@@ -13,6 +15,7 @@ export default function GpuPreview({scene,frame,camera,onError}){
       view=createGpuViewport(canvasRef.current,error=>errorRef.current(error));
       viewport.current=view;
       view.draw(latest.current);
+      readyRef.current?.();
     }).catch(error=>{if(!cancelled)errorRef.current(error);});
     return ()=>{
       cancelled=true;
