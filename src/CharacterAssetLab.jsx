@@ -194,7 +194,7 @@ export default function CharacterAssetLab({onClose}){
       const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
       const url=URL.createObjectURL(blob),link=document.createElement('a');
       link.href=url;
-      link.download=candidate.name.replace(/\\.glb$/i,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-poses.json';
+      link.download=candidate.name.replace(/\.glb$/i,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-poses.json';
       document.body.append(link);link.click();link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),3000);
       setError('');setMessage('Source-locked pose pack downloaded locally.');
@@ -255,23 +255,19 @@ export default function CharacterAssetLab({onClose}){
     }catch(err){setError(err.message||String(err));}
   }
   function jumpToCue(cue){
-    if(!ready||!viewer.current)return;
-    const index=cue.clipIndex;
-    clipIndexRef.current=index;
-    viewer.current.selectClip(index);
-    setClipIndex(index);setPlaying(false);
-    seekFrame(secondsToFrame(cue.timeMs/1000,ready.clips[index].duration,fps));
+    if(!selected||!viewer.current||cue.clipIndex!==clipIndex)return;
+    seekFrame(secondsToFrame(cue.timeMs/1000,selected.duration,fps));
     setMessage('Jumped to dialogue marker.');
   }
   function exportActingSheet(){
     if(!candidate||!ready||(!expressionKeys.length&&!dialogueCues.length))return;
     try{
       const data=makeActingSheet(candidate.sha256,expressionKeys,dialogueCues,poseContext());
-      const blob=new Blob([JSON.stringify(data,null,2)+'\\n'],{type:'application/json'});
+      const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
       if(blob.size>MAX_ACTING_SHEET_BYTES)throw Error('Acting sheet exceeds 96 KiB');
       const url=URL.createObjectURL(blob),link=document.createElement('a');
       link.href=url;
-      link.download=candidate.name.replace(/\\.glb$/i,'')
+      link.download=candidate.name.replace(/\.glb$/i,'')
         .replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-acting.json';
       document.body.append(link);link.click();link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),3000);
