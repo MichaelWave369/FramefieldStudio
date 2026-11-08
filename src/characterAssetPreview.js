@@ -5,6 +5,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {advanceCharacterTime,frameToSeconds,MAX_CLIP_SECONDS} from './characterTimeline.js';
 import {MAX_MORPH_CONTROLS,clampMorphWeight} from './characterPosePack.js';
+import {evaluateExpressionTrack} from './characterActingTimeline.js';
 
 function disposeAsset(root){
   const geometries=new Set(),materials=new Set(),textures=new Set(),skeletons=new Set();
@@ -97,11 +98,23 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
       }
     });
     const morphOverrides=new Map();
+    let actingKeys=[];
+    const morphIds=morphTargets.map(target=>target.id);
     function baseMorphs(){
       for(const [id,binding] of morphBindings)
         binding.node.morphTargetInfluences[binding.index]=morphDefaults.get(id);
     }
     function applyMorphs(){
+      // Keys sit above imported animation, while manual sliders stay above keys.
+      // That permits adjusting a channel at the playhead before storing a key.
+      const evaluated=selectedClip>=0?evaluateExpressionTrack(
+        actingKeys,selectedClip,Math.round(playheadSeconds*1000),morphIds):null;
+      if(evaluated){
+        for(const [id,value] of Object.entries(evaluated)){
+          const target=morphBindings.get(id);
+          if(target)target.node.morphTargetInfluences[target.index]=value;
+        }
+      }
       for(const [id,value] of morphOverrides){
         const target=morphBindings.get(id);
         if(target)target.node.morphTargetInfluences[target.index]=value;
@@ -129,6 +142,22 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
       baseMorphs();
       if(action)sampleTime(playheadSeconds);
       applyMorphs();
+    }
+    function getDisplayedMorphValues(){
+      return Object.fromEntries([...morphBindings.entries()].map(([id,{node,index}])=>
+        [id,node.morphTargetInfluences[index]]));
+    }
+    function clearManualMorphValues(){
+      morphOverrides.clear();
+      if(action)sampleTime(playheadSeconds);
+      else{baseMorphs();applyMorphs();}
+    }
+    function setActingKeys(keys){
+      actingKeys=keys.map(key=>({...key,morphs:{...key.morphs}}))
+        .sort((a,b)=>a.clipIndex-b.clipIndex||a.timeMs-b.timeMs);
+      if(action)sampleTime(playheadSeconds);
+      else{baseMorphs();applyMorphs();}
+      return getDisplayedMorphValues();
     }
     const mixer=new THREE.AnimationMixer(gltf.scene);
     const clips=gltf.animations||[];
@@ -220,6 +249,7 @@ export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{},
         bones:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isBone)count++;});return count;})()
       },
       selectClip,setPlaying,seekFrame,setLoop,setMorphWeight,setMorphValues,
+      setActingKeys,clearManualMorphValues,getDisplayedMorphValues,
       morphTargets,
       getMorphValues:()=>Object.fromEntries(morphOverrides),
       async capturePng(){

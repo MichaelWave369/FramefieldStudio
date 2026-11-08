@@ -4,6 +4,8 @@ import {CHARACTER_FRAME_RATES,durationFrameCount,frameToSeconds,
   secondsToFrame} from './characterTimeline.js';
 import {validatePoseEntry,makePosePack,readPosePack,MAX_NAMED_POSES,
   MAX_POSE_PACK_BYTES} from './characterPosePack.js';
+import {makeActingSheet,readActingSheet,validateActingData,
+  MAX_ACTING_KEYS,MAX_DIALOGUE_CUES,MAX_ACTING_SHEET_BYTES} from './characterActingTimeline.js';
 
 // The Character Asset Lab remains independent of Framefield's editable JSON scene.
 // Motion controls sample only the selected local GLB. No project mutation or upload.
@@ -17,8 +19,13 @@ export default function CharacterAssetLab({onClose}){
   const [message,setMessage]=useState('');
   const [poseName,setPoseName]=useState(''),[savedPoses,setSavedPoses]=useState([]);
   const [morphValues,setMorphValues]=useState({});
+  const [expressionKeys,setExpressionKeys]=useState([]);
+  const [dialogueCues,setDialogueCues]=useState([]);
+  const [dialogueText,setDialogueText]=useState('');
+  const [keyInterpolation,setKeyInterpolation]=useState('linear');
   const canvasRef=useRef(null),viewer=useRef(null),fpsRef=useRef(24),secondsRef=useRef(0),
-    clipIndexRef=useRef(0),clipDurationsRef=useRef([]);
+    clipIndexRef=useRef(0),clipDurationsRef=useRef([]),
+    actingKeysRef=useRef([]),displayFrameRef=useRef(-1);
   fpsRef.current=fps;
   useEffect(()=>{
     const escape=event=>{if(event.key==='Escape')onClose();};
@@ -36,6 +43,8 @@ export default function CharacterAssetLab({onClose}){
     clipIndexRef.current=0;clipDurationsRef.current=[];
     setError('');setMessage('');
     setPoseName('');setSavedPoses([]);setMorphValues({});
+    setExpressionKeys([]);setDialogueCues([]);setDialogueText('');
+    actingKeysRef.current=[];displayFrameRef.current=-1;
     if(!file.name.toLowerCase().endsWith('.glb')||file.size>MAX_CHARACTER_GLB_BYTES||file.size<28){
       setError('Choose an embedded GLB file under 24 MiB. Editable import has separate limits.');
       return;
@@ -70,6 +79,13 @@ export default function CharacterAssetLab({onClose}){
             const value=duration?secondsToFrame(seconds,duration,fpsRef.current):0;
             return current===value?current:value;
           });
+          const duration=clipDurationsRef.current[clipIndexRef.current];
+          const displayFrame=duration?secondsToFrame(seconds,duration,fpsRef.current):0;
+          if(active&&actingKeysRef.current.length&&
+             displayFrame!==displayFrameRef.current&&viewer.current){
+            displayFrameRef.current=displayFrame;
+            setMorphValues(viewer.current.getDisplayedMorphValues());
+          }
           setPlaying(current=>current===active?current:active);
         });
         if(cancelled){instance.dispose();return;}
@@ -95,6 +111,9 @@ export default function CharacterAssetLab({onClose}){
     viewer.current?.selectClip(index);
     secondsRef.current=0;
     setClipIndex(index);setFrame(0);setPlaying(false);setMessage('');
+    displayFrameRef.current=-1;
+    if(actingKeysRef.current.length)
+      setMorphValues(viewer.current?.getDisplayedMorphValues()||{});
   }
   function togglePlayback(){
     const next=!playing;
@@ -113,6 +132,9 @@ export default function CharacterAssetLab({onClose}){
     const seconds=viewer.current.seekFrame(nextFrame,fps);
     secondsRef.current=seconds;
     setFrame(secondsToFrame(seconds,selected.duration,fps));
+    displayFrameRef.current=-1;
+    if(actingKeysRef.current.length)
+      setMorphValues(viewer.current.getDisplayedMorphValues());
     setPlaying(false);
   }
   function toggleLoop(){
@@ -134,8 +156,8 @@ export default function CharacterAssetLab({onClose}){
   }
   function resetExpressions(){
     viewer.current?.setMorphValues({});
-    setMorphValues({});
-    setMessage('Expression overrides cleared; source animation restored.');
+    setMorphValues(viewer.current?.getDisplayedMorphValues()||{});
+    setMessage('Manual overrides cleared; source animation and any acting keys remain.');
   }
   function saveNamedPose(){
     if(!candidate||!ready||!viewer.current)return;
@@ -172,7 +194,7 @@ export default function CharacterAssetLab({onClose}){
       const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
       const url=URL.createObjectURL(blob),link=document.createElement('a');
       link.href=url;
-      link.download=candidate.name.replace(/\\.glb$/i,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-poses.json';
+      link.download=candidate.name.replace(/\.glb$/i,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-poses.json';
       document.body.append(link);link.click();link.remove();
       window.setTimeout(()=>URL.revokeObjectURL(url),3000);
       setError('');setMessage('Source-locked pose pack downloaded locally.');
@@ -189,6 +211,88 @@ export default function CharacterAssetLab({onClose}){
       setSavedPoses(data.poses);
       setError('');setMessage('Loaded '+data.poses.length+' poses for this exact GLB.');
     }catch(err){setError('Pose pack import failed: '+(err.message||String(err)));}
+  }
+  function currentCueMs(){
+    return selected?Math.round(frameToSeconds(frame,selected.duration,fps)*1000):0;
+  }
+  function updateActingKeys(keys){
+    const clean=validateActingData(keys,dialogueCues,poseContext());
+    actingKeysRef.current=clean.keys;
+    setExpressionKeys(clean.keys);
+    const viewerInstance=viewer.current;
+    if(viewerInstance){
+      viewerInstance.clearManualMorphValues();
+      setMorphValues(viewerInstance.setActingKeys(clean.keys));
+    }
+    displayFrameRef.current=-1;
+  }
+  function saveExpressionKey(){
+    if(!selected||!viewer.current||!ready?.morphTargets?.length)return;
+    try{
+      const timeMs=currentCueMs();
+      const key={clipIndex,timeMs,interpolation:keyInterpolation,
+        morphs:viewer.current.getDisplayedMorphValues()};
+      const updated=[...expressionKeys.filter(
+        item=>item.clipIndex!==clipIndex||item.timeMs!==timeMs),key];
+      updateActingKeys(updated);
+      setError('');setMessage('Expression key stored at '+timeMs+' ms.');
+    }catch(err){setError(err.message||String(err));}
+  }
+  function deleteExpressionKey(key){
+    try{
+      updateActingKeys(expressionKeys.filter(item=>item!==key));
+      setError('');setMessage('Expression key removed.');
+    }catch(err){setError(err.message||String(err));}
+  }
+  function addDialogueCue(){
+    if(!selected||!ready)return;
+    try{
+      const cue={clipIndex,timeMs:currentCueMs(),text:dialogueText};
+      const clean=validateActingData(expressionKeys,[...dialogueCues,cue],poseContext());
+      setDialogueCues(clean.dialogue);
+      setDialogueText('');
+      setError('');setMessage('Dialogue marker saved to this local session.');
+    }catch(err){setError(err.message||String(err));}
+  }
+  function jumpToCue(cue){
+    if(!selected||!viewer.current||cue.clipIndex!==clipIndex)return;
+    seekFrame(secondsToFrame(cue.timeMs/1000,selected.duration,fps));
+    setMessage('Jumped to dialogue marker.');
+  }
+  function exportActingSheet(){
+    if(!candidate||!ready||(!expressionKeys.length&&!dialogueCues.length))return;
+    try{
+      const data=makeActingSheet(candidate.sha256,expressionKeys,dialogueCues,poseContext());
+      const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
+      if(blob.size>MAX_ACTING_SHEET_BYTES)throw Error('Acting sheet exceeds 96 KiB');
+      const url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;
+      link.download=candidate.name.replace(/\.glb$/i,'')
+        .replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-acting.json';
+      document.body.append(link);link.click();link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),3000);
+      setError('');setMessage('Source-locked acting sheet downloaded locally.');
+    }catch(err){setError(err.message||String(err));}
+  }
+  async function importActingSheet(event){
+    const file=event.target.files?.[0];
+    event.target.value='';
+    if(!file||!ready||!candidate)return;
+    try{
+      if(file.size>MAX_ACTING_SHEET_BYTES)throw Error('Acting sheet exceeds 96 KiB');
+      const raw=JSON.parse(await file.text());
+      const data=readActingSheet(raw,candidate.sha256,poseContext());
+      setDialogueCues(data.dialogue);
+      actingKeysRef.current=data.keys;
+      setExpressionKeys(data.keys);
+      if(viewer.current){
+        viewer.current.clearManualMorphValues();
+        setMorphValues(viewer.current.setActingKeys(data.keys));
+      }
+      displayFrameRef.current=-1;
+      setError('');setMessage('Loaded '+data.keys.length+' expression keys and '+
+        data.dialogue.length+' dialogue markers for this exact GLB.');
+    }catch(err){setError('Acting sheet import failed: '+(err.message||String(err)));}
   }
   async function capturePose(){
     if(!viewer.current||!selected||savingPng)return;
@@ -212,11 +316,12 @@ export default function CharacterAssetLab({onClose}){
   return <div className="creator-overlay" data-testid="character-asset-lab">
     <section className="creator-dialog character-lab-dialog" role="dialog" aria-modal="true"
       aria-label="Character Asset Lab">
-      <div className="creator-kicker">FRAMEFIELD / CHARACTER ACTING / PHASE 1E</div>
+      <div className="creator-kicker">FRAMEFIELD / ACTING TIMELINE / PHASE 1F</div>
       <h2>Character Asset Lab</h2>
       <p>Preview a local textured or rigged GLB, scrub source clips, blend available
-        facial morph targets, and save named pose bookmarks. Pose packs can be
-        downloaded and reloaded for the <strong>same exact character GLB</strong>.
+        facial morph targets, place expression keyframes and timed dialogue markers,
+        and reuse named poses. Acting sheets and pose packs are tied to the
+        <strong>same exact character GLB</strong>. No speech synthesis is used.
         This remains a <strong>read-only staging area</strong>, not the editable
         project importer or a ChipToons publishing pipeline.</p>
       <label className="character-lab-file">
@@ -304,6 +409,72 @@ export default function CharacterAssetLab({onClose}){
               <button className="ghost" onClick={resetExpressions}>Reset expressions</button>
             </>:
             <span>This model has no facial blendshapes or morph targets to adjust.</span>}
+        </div>
+        <div className="character-lab-details" aria-label="Character acting timeline">
+          <strong>Acting timeline / manual expression keys</strong>
+          <p className="creator-footnote">Scrub to a frame, set existing morph sliders,
+            and store an expression key. Keys are evaluated in milliseconds and
+            can interpolate linearly or hold until the next key.</p>
+          {ready.clips.length&&ready.morphTargets.length?
+            <div className="character-lab-pose-editor">
+              <label>Interpolation to next key
+                <select aria-label="Expression key interpolation" value={keyInterpolation}
+                  onChange={e=>setKeyInterpolation(e.target.value)}>
+                  <option value="linear">Linear blend</option>
+                  <option value="hold">Hold</option>
+                </select>
+              </label>
+              <button className="primary" onClick={saveExpressionKey}
+                disabled={expressionKeys.length>=MAX_ACTING_KEYS&&
+                  !expressionKeys.some(k=>k.clipIndex===clipIndex&&k.timeMs===currentCueMs())}>
+                Save expression keyframe
+              </button>
+            </div>:
+            <span>Expression keyframing requires a source animation clip and
+              at least one actual GLB morph target.</span>}
+          {expressionKeys.filter(k=>k.clipIndex===clipIndex).map(key=>
+            <div className="character-lab-pose-row"
+              key={key.clipIndex+':'+key.timeMs}>
+              <span>{(key.timeMs/1000).toFixed(3)} s · {key.interpolation}
+                {' · '}{Object.keys(key.morphs).length} morph weights</span>
+              <button aria-label={'Jump to expression key '+key.timeMs}
+                onClick={()=>seekFrame(secondsToFrame(key.timeMs/1000,
+                  selected.duration,fps))}>Go to key</button>
+              <button aria-label={'Delete expression key '+key.timeMs}
+                onClick={()=>deleteExpressionKey(key)}>Delete</button>
+            </div>)}
+          <strong>Dialogue markers / manual lip-sync timing</strong>
+          <p className="creator-footnote">Mark where an utterance begins, then
+            position mouth morph keyframes yourself. No automatic phoneme
+            alignment or speech generation is implied.</p>
+          {selected&&<div className="character-lab-pose-editor">
+            <input type="text" maxLength="240" aria-label="Dialogue line"
+              placeholder="e.g. Hello there!" value={dialogueText}
+              onChange={e=>setDialogueText(e.target.value)}/>
+            <button onClick={addDialogueCue}
+              disabled={dialogueCues.length>=MAX_DIALOGUE_CUES}>Add dialogue marker</button>
+          </div>}
+          {dialogueCues.filter(cue=>cue.clipIndex===clipIndex).map((cue,i)=>
+            <div className="character-lab-pose-row" key={cue.clipIndex+':'+cue.timeMs+':'+i}>
+              <span>{(cue.timeMs/1000).toFixed(3)} s · {cue.text}</span>
+              <button aria-label={'Jump to dialogue '+cue.timeMs}
+                onClick={()=>jumpToCue(cue)}>Go to line</button>
+              <button aria-label={'Delete dialogue '+cue.timeMs}
+                onClick={()=>setDialogueCues(current=>current.filter(x=>x!==cue))}>Delete</button>
+            </div>)}
+          <div className="character-lab-pose-editor">
+            <button className="ghost" onClick={exportActingSheet}
+              disabled={!expressionKeys.length&&!dialogueCues.length}>
+              Export acting sheet JSON
+            </button>
+            <label>Load acting sheet JSON
+              <input type="file" accept=".json,application/json"
+                aria-label="Load acting sheet JSON" onChange={importActingSheet}/>
+            </label>
+          </div>
+          <p className="creator-footnote">{expressionKeys.length} expression keys /
+            {' '}{dialogueCues.length} dialogue markers. Sheets store timing,
+            text and morph weights only, never source audio or GLB geometry.</p>
         </div>
         <div className="character-lab-details" aria-label="Named character poses">
           <strong>Named pose bookmarks (up to {MAX_NAMED_POSES})</strong>
