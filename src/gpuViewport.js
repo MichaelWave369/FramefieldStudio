@@ -6,6 +6,12 @@ import {sanitizeLighting,sanitizeMaterial} from './lighting.js';
 
 export function createGpuViewport(canvas,onError=()=>{}) {
   const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'default'});
+  // A lost device context must not leave artists with a silent blank canvas.
+  const onContextLost=event=>{
+    event.preventDefault();
+    if(!disposed)onError(Error('WebGL context lost; the editor was restored.'));
+  };
+  canvas.addEventListener('webglcontextlost',onContextLost);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure=1;
@@ -109,6 +115,7 @@ export function createGpuViewport(canvas,onError=()=>{}) {
   return {draw,dispose(){
     disposed=true;
     resizeObserver.disconnect();
+    canvas.removeEventListener('webglcontextlost',onContextLost);
     clearMeshes();
     for(const light of directional){light.shadow.dispose();}
     renderer.dispose();
