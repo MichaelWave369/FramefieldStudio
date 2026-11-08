@@ -21,6 +21,7 @@ export function frameToSeconds(frame,duration,fps){
 }
 export function secondsToFrame(seconds,duration,fps){
   const value=Number(seconds);
+  if(Number.isFinite(value)&&value>=duration)return durationFrameCount(duration,fps);
   return clampCharacterFrame(Number.isFinite(value)?value*fps:0,duration,fps);
 }
 export function advanceCharacterTime(current,delta,duration,loop=true){
