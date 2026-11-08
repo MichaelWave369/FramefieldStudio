@@ -169,7 +169,7 @@ export default function CharacterAssetLab({onClose}){
     if(!candidate||!ready||!savedPoses.length)return;
     try{
       const data=makePosePack(candidate.sha256,savedPoses,poseContext());
-      const blob=new Blob([JSON.stringify(data,null,2)+'\\n'],{type:'application/json'});
+      const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
       const url=URL.createObjectURL(blob),link=document.createElement('a');
       link.href=url;
       link.download=candidate.name.replace(/\\.glb$/i,'').replace(/[^a-z0-9_-]/gi,'-').slice(0,55)+'-poses.json';
