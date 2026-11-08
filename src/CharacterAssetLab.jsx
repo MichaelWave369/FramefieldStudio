@@ -336,7 +336,7 @@ export default function CharacterAssetLab({onClose}){
             Import rejects packs for a different source GLB.</p>
         </div>
       </>}
-      {message&&<p role="status" className="character-lab-message">{message}</p>
+      {message&&<p role="status" className="character-lab-message">{message}</p>}
       <p className="creator-footnote">Files remain in this browser. PNG stills are downloaded
         locally. Frame sampling is repeatable for a chosen clip, frame rate and camera,
         but is not synchronized with Framefield's main scene timeline. Named poses
