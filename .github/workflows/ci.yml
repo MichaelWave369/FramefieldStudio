@@ -33,9 +33,10 @@ jobs:
         with:
           name: framefield-gpu-acceptance
           path: |
+            gpu-evidence/
             test-results/
             playwright-report/
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 14
 
   browser-compatibility:
