@@ -15,6 +15,7 @@ export default function GpuPreview({scene,frame,camera,onReady,onError}){
       view=createGpuViewport(canvasRef.current,error=>errorRef.current(error));
       viewport.current=view;
       view.draw(latest.current);
+      canvasRef.current?.setAttribute('data-rendered-frame',String(latest.current.frame));
       readyRef.current?.();
     }).catch(error=>{if(!cancelled)errorRef.current(error);});
     return ()=>{
@@ -24,8 +25,12 @@ export default function GpuPreview({scene,frame,camera,onReady,onError}){
     };
   },[]);
   useEffect(()=>{
-    try{viewport.current?.draw(latest.current);}
-    catch(error){errorRef.current(error);}
+    try{
+      if(viewport.current){
+        viewport.current.draw(latest.current);
+        canvasRef.current?.setAttribute('data-rendered-frame',String(latest.current.frame));
+      }
+    }catch(error){errorRef.current(error);}
   },[scene,frame,camera]);
   return <canvas ref={canvasRef} aria-label="Read-only GPU preview canvas"
     data-testid="gpu-preview-canvas"/>;
