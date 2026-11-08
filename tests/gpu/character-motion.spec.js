@@ -19,10 +19,16 @@ test('character animation can be sampled exactly at 24/30fps and exported as PNG
     await expect(scrub).toHaveAttribute('max','24');
     const canvas=lab.getByTestId('character-lab-canvas');
     // Sampling is paused, so screenshots are not subject to animation timing.
-    await scrub.fill('0');
+    const setScrub=async value=>scrub.evaluate((input,next)=>{
+      const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+      setter.call(input,String(next));
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    },value);
+    await setScrub(0);
     await page.waitForTimeout(75);
     const start=await canvas.screenshot();
-    await scrub.fill('12');
+    await setScrub(12);
     await expect(scrub).toHaveValue('12');
     await expect(lab).toContainText('0.500 s');
     await page.waitForTimeout(75);
