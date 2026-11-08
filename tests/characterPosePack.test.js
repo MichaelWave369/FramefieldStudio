@@ -20,7 +20,7 @@ test('pose pack refuses unrelated characters, unsupported versions and unknown m
   assert.throws(()=>readPosePack(book,'b'.repeat(64),context),/different GLB/);
   assert.throws(()=>readPosePack({...book,version:99},sha,context),/unsupported format/);
   assert.throws(()=>makePosePack(sha,[pose({morphs:{'2:0':.5}})],context),/unavailable expression/);
-  assert.throws(()=>makePosePack(sha,[pose({morphs:{'__proto__':1}})],context),/invalid/);
+  assert.throws(()=>makePosePack(sha,[pose({morphs:JSON.parse('{\"__proto__\":1}')})],context),/invalid/);
 });
 
 test('saved poses validate clip frames, labels, expression bounds and duplicates',()=>{
