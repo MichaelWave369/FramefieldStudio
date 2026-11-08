@@ -13,7 +13,8 @@ export default function CharacterAssetLab({onClose}){
   const [fps,setFps]=useState(24),[frame,setFrame]=useState(0);
   const [loop,setLoop]=useState(true),[savingPng,setSavingPng]=useState(false);
   const [message,setMessage]=useState('');
-  const canvasRef=useRef(null),viewer=useRef(null),fpsRef=useRef(24),secondsRef=useRef(0);
+  const canvasRef=useRef(null),viewer=useRef(null),fpsRef=useRef(24),secondsRef=useRef(0),
+    clipIndexRef=useRef(0),clipDurationsRef=useRef([]);
   fpsRef.current=fps;
   useEffect(()=>{
     const escape=event=>{if(event.key==='Escape')onClose();};
@@ -28,6 +29,7 @@ export default function CharacterAssetLab({onClose}){
     viewer.current=null;
     setCandidate(null);setReady(null);setPlaying(false);
     setClipIndex(0);setFrame(0);secondsRef.current=0;
+    clipIndexRef.current=0;clipDurationsRef.current=[];
     setError('');setMessage('');
     if(!file.name.toLowerCase().endsWith('.glb')||file.size>MAX_CHARACTER_GLB_BYTES||file.size<28){
       setError('Choose an embedded GLB file under 24 MiB. Editable import has separate limits.');
@@ -57,13 +59,16 @@ export default function CharacterAssetLab({onClose}){
           if(cancelled)return;
           secondsRef.current=seconds;
           setFrame(current=>{
-            const value=Math.round(seconds*fpsRef.current);
+            const duration=clipDurationsRef.current[clipIndexRef.current];
+            const value=duration?secondsToFrame(seconds,duration,fpsRef.current):0;
             return current===value?current:value;
           });
           setPlaying(current=>current===active?current:active);
         });
         if(cancelled){instance.dispose();return;}
         viewer.current=instance;
+        clipDurationsRef.current=instance.clips.map(clip=>clip.duration);
+        clipIndexRef.current=0;
         instance.setLoop(loop);
         setReady({clips:instance.clips,stats:instance.stats});
         setClipIndex(0);setFrame(0);setPlaying(false);
@@ -79,6 +84,7 @@ export default function CharacterAssetLab({onClose}){
   const maxFrame=selected?durationFrameCount(selected.duration,fps):0;
   function changeClip(value){
     const index=Number(value);
+    clipIndexRef.current=index;
     viewer.current?.selectClip(index);
     secondsRef.current=0;
     setClipIndex(index);setFrame(0);setPlaying(false);setMessage('');
