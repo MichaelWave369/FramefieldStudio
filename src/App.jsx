@@ -19,6 +19,7 @@ import {DEFAULT_SHOT_CAMERA,DEFAULT_RENDER,sanitizeShotCamera,sanitizeRender,fra
 import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
+import GpuPreview from './GpuPreview.jsx';
 import {makeBpcXrPacket} from './bpcExport.js';
 import {MAX_GLB_BYTES,prepareGlbImport} from './glbImport.js';
 import GlbImportDialog from './GlbImportDialog.jsx';
@@ -65,6 +66,7 @@ export default function App(){
   const [graphChannel,setGraphChannel]=useState('position.0');
   const [inspectorTab,setInspectorTab]=useState('object');
   const [previewShot,setPreviewShot]=useState(false);
+  const [gpuPreview,setGpuPreview]=useState(false);
   const [exporting,setExporting]=useState(false);
   const [exportProgress,setExportProgress]=useState('');
   const cancelExport=useRef(false);
@@ -99,7 +101,7 @@ export default function App(){
     const cv=canvasRef.current;if(!cv)return;
     const obs=new ResizeObserver(()=>setSizeVersion(v=>v+1));
     obs.observe(cv);return ()=>obs.disconnect();
-  },[]);
+  },[gpuPreview]);
   useEffect(()=>{
     const settings=sanitizeRender(scene.renderSettings);
     const view=render(canvasRef.current,scene,frame,
@@ -111,7 +113,7 @@ export default function App(){
     pickFaces.current=view.faces||[];
     handles.current=view.handles;
     meshHits.current=view.components||[];
-  },[scene,frame,camera,selectedId,tool,previewShot,meshMode,meshSelection,sizeVersion]);
+  },[scene,frame,camera,selectedId,tool,previewShot,meshMode,meshSelection,sizeVersion,gpuPreview]);
   useEffect(()=>{
     const cv=canvasRef.current;if(!cv)return;
     const handle=e=>{e.preventDefault();if(previewShot)return;
@@ -693,7 +695,7 @@ export default function App(){
           Export BPC XR
         </button>
         <button className="ghost" onClick={snapshot} disabled={exporting}>Render PNG</button>
-        <button className="primary" onClick={record}>{recording?'■ Stop recording':'● Record WebM'}</button>
+        <button className="primary" onClick={record} disabled={gpuPreview}>{recording?'■ Stop recording':'● Record WebM'}</button>
         <input ref={fileRef} hidden type="file" accept=".json,application/json"
           aria-label="Choose a Framefield JSON project" onChange={openFile}/>
         <input ref={glbFileRef} hidden type="file" accept=".glb,model/gltf-binary"
@@ -734,12 +736,16 @@ export default function App(){
         </div>
       </aside>
       <section className="viewport-panel" aria-label="3D viewport">
-        <div className="view-top"><div><span className="view-tag">{previewShot?'SHOT CAMERA':meshMode!=='object'?'MESH '+meshMode.toUpperCase():'PERSPECTIVE'}</span>
+        <div className="view-top"><div><span className="view-tag">{gpuPreview?'GPU PREVIEW':previewShot?'SHOT CAMERA':meshMode!=='object'?'MESH '+meshMode.toUpperCase():'PERSPECTIVE'}</span>
           <span>World / Frame {String(frame).padStart(3,'0')}</span></div>
           <div className="viewport-actions" role="toolbar" aria-label="Viewport tools">
             <button className={'tool-button '+(previewShot?'chosen':'')}
-              aria-pressed={previewShot} onClick={()=>setPreviewShot(p=>!p)}
+              aria-pressed={previewShot} onClick={()=>{setGpuPreview(false);setPreviewShot(p=>!p);}}
               title="Toggle clean saved-camera preview">◧ Shot View</button>
+            <button className={'tool-button '+(gpuPreview?'chosen':'')}
+              aria-pressed={gpuPreview} disabled={recording||exporting}
+              onClick={()=>{if(!gpuPreview)setPreviewShot(false);setGpuPreview(value=>!value);}}
+              title="Read-only WebGL preview; software editor and exports unchanged">GPU Preview</button>
             <button className={'tool-button '+(tool==='move'?'chosen':'')} aria-pressed={tool==='move'}
               onClick={()=>setTool('move')} title="Move · G · Alt snaps 0.25 units">✥ Move</button>
             <button className={'tool-button '+(tool==='rotate'?'chosen':'')} aria-pressed={tool==='rotate'}
@@ -751,11 +757,14 @@ export default function App(){
             <button className="ghost small" onClick={()=>setCamera(cameraInitial())}>Reset camera</button>
           </div>
         </div>
-        <canvas ref={canvasRef} aria-label="Interactive 3D viewport"
-          onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
-          onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>
+        {gpuPreview
+          ? <GpuPreview scene={scene} frame={frame} camera={camera}
+              onError={error=>{setGpuPreview(false);setStatus('GPU preview unavailable: '+(error?.message||String(error)));}}/>
+          : <canvas ref={canvasRef} aria-label="Interactive 3D viewport"
+              onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
+              onPointerCancel={()=>drag.current=null} onContextMenu={e=>e.preventDefault()}/>}
         <div className="axis-compass" aria-hidden="true"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
-        <div className="view-bottom"><span>Original software 3D renderer · no external assets</span>
+        <div className="view-bottom"><span>{gpuPreview?'Read-only WebGL preview · switch back to edit':'Original software 3D renderer · no external assets'}</span>
           <span>{previewShot?'Clean shot preview · camera locked':meshMode!=='object'?'Mesh '+meshMode+' · drag marker · Alt snaps':tool==='move'?'Drag handles · Alt 0.25':tool==='rotate'?'Drag rings · Alt 15°':tool==='scale'?'Drag handles · Alt 0.1':'Orbit camera'} · {camera.distance.toFixed(1)}m</span></div>
       </section>
       <aside className="sidebar right">
