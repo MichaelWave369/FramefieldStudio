@@ -25,6 +25,19 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser runtime smoke test
         run: npx playwright test --max-failures=1
+      - name: GPU preview real-render acceptance (SwiftShader Chromium)
+        run: npx playwright test -c playwright.gpu.config.js --max-failures=1
+      - name: Preserve GPU rendering screenshots and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: framefield-gpu-acceptance
+          path: |
+            gpu-evidence/
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
 
   browser-compatibility:
     name: Cross-browser creator workflow (${{ matrix.browser }})

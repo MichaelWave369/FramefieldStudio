@@ -119,7 +119,7 @@ export default function App(){
     const handle=e=>{e.preventDefault();if(previewShot)return;
       setCamera(c=>({...c,distance:clamp(c.distance*Math.exp(e.deltaY*.001),2,70)}));};
     cv.addEventListener('wheel',handle,{passive:false});return ()=>cv.removeEventListener('wheel',handle);
-  },[previewShot]);
+  },[previewShot,gpuPreview]);
   useEffect(()=>{
     if(!playing)return;
     let raf,last=0,progress=frame;
@@ -759,6 +759,7 @@ export default function App(){
         </div>
         {gpuPreview
           ? <GpuPreview scene={scene} frame={frame} camera={camera}
+              onReady={()=>setStatus('GPU preview rendered · read-only; return to Software View to edit.')}
               onError={error=>{setGpuPreview(false);setStatus('GPU preview unavailable: '+(error?.message||String(error)));}}/>
           : <canvas ref={canvasRef} aria-label="Interactive 3D viewport"
               onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
