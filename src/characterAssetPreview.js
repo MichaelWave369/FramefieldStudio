@@ -1,0 +1,156 @@
+// Isolated, read-only GLB / glTF character preview.
+// File bytes stay in browser memory. No scene-file changes. SPDX-License-Identifier: MIT
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+function disposeAsset(root){
+  const geometries=new Set(),materials=new Set(),textures=new Set(),skeletons=new Set();
+  root.traverse(node=>{
+    if(node.geometry)geometries.add(node.geometry);
+    if(node.skeleton)skeletons.add(node.skeleton);
+    for(const m of (Array.isArray(node.material)?node.material:[node.material])){
+      if(!m)continue;
+      materials.add(m);
+      for(const val of Object.values(m))if(val?.isTexture)textures.add(val);
+    }
+  });
+  for(const item of skeletons)item.dispose?.();
+  for(const item of geometries)item.dispose();
+  for(const item of materials)item.dispose();
+  for(const item of textures)item.dispose();
+}
+
+export async function createCharacterPreview(canvas,buffer,onContextLoss=()=>{}){
+  const loader=new GLTFLoader();
+  // Preflight excludes external buffers and images; the empty resource base is deliberate.
+  const gltf=await new Promise((resolve,reject)=>loader.parse(buffer,'',resolve,reject));
+  let renderer=null,controls=null,disposed=false,raf=0,resizeObserver=null;
+  try{
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'default'});
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.15;
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color('#0b1528');
+    const stage=new THREE.Group();
+    stage.add(gltf.scene);
+    scene.add(stage);
+    const box=new THREE.Box3().setFromObject(gltf.scene);
+    if(box.isEmpty())throw Error('Character Lab: model contains no visible geometry');
+    const center=box.getCenter(new THREE.Vector3());
+    const dimensions=box.getSize(new THREE.Vector3());
+    const radius=Math.max(dimensions.length(),.1);
+    if(!Number.isFinite(radius)||radius>10000)throw Error('Character Lab: invalid model bounds');
+    stage.position.copy(center).multiplyScalar(-1);
+
+    scene.add(new THREE.HemisphereLight(0xf4f6ff,0x30435c,2.0));
+    const key=new THREE.DirectionalLight(0xffedcf,3.2);
+    key.position.set(radius*1.2,radius*1.5,radius*.9);
+    key.castShadow=true;
+    key.shadow.mapSize.set(1024,1024);
+    key.shadow.camera.left=-radius;
+    key.shadow.camera.right=radius;
+    key.shadow.camera.top=radius;
+    key.shadow.camera.bottom=-radius;
+    key.shadow.camera.near=.01;
+    key.shadow.camera.far=Math.max(radius*5,10);
+    scene.add(key,key.target);
+    const fill=new THREE.DirectionalLight(0x97c6ff,1.3);
+    fill.position.set(-radius,radius*.7,-radius);
+    scene.add(fill);
+
+    const camera=new THREE.PerspectiveCamera(42,1,.01,Math.max(100,radius*50));
+    camera.position.set(radius*.7,radius*.35,radius*1.35);
+    controls=new OrbitControls(camera,canvas);
+    controls.enableDamping=true;
+    controls.enablePan=false;
+    controls.minDistance=radius*.35;
+    controls.maxDistance=radius*4;
+    controls.target.set(0,0,0);
+    controls.update();
+
+    const mixer=new THREE.AnimationMixer(gltf.scene);
+    const clips=gltf.animations||[];
+    let action=null,playing=false,selectedClip=-1;
+    function selectClip(index){
+      if(!Number.isInteger(index)||index<0||index>=clips.length){
+        action?.stop();
+        action=null;selectedClip=-1;playing=false;return;
+      }
+      mixer.stopAllAction();
+      mixer.setTime(0);
+      selectedClip=index;
+      action=mixer.clipAction(clips[index]);
+      action.reset().play();
+      playing=false;
+      mixer.update(0);
+    }
+    function setPlaying(next){
+      if(!action)return false;
+      playing=Boolean(next);
+      return playing;
+    }
+    if(clips.length)selectClip(0);
+    function resize(){
+      const rect=canvas.getBoundingClientRect();
+      const width=Math.max(1,Math.round(rect.width||700));
+      const height=Math.max(1,Math.round(rect.height||400));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+      renderer.setSize(width,height,false);
+      camera.aspect=width/height;
+      camera.updateProjectionMatrix();
+    }
+    resizeObserver=new ResizeObserver(resize);
+    resizeObserver.observe(canvas);
+    let last=0;
+    function tick(t){
+      if(disposed)return;
+      const delta=last?Math.min((t-last)/1000,.05):0;
+      last=t;
+      if(playing)mixer.update(delta);
+      controls.update();
+      renderer.render(scene,camera);
+      raf=requestAnimationFrame(tick);
+    }
+    const lost=event=>{
+      event.preventDefault();
+      if(!disposed)onContextLoss(Error('Character Lab: WebGL context lost'));
+    };
+    canvas.addEventListener('webglcontextlost',lost);
+    resize();
+    raf=requestAnimationFrame(tick);
+    return {
+      clips:clips.map((clip,index)=>({index,name:clip.name||'Action '+(index+1),
+        duration:Number(clip.duration.toFixed(2))})),
+      stats:{
+        meshes:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isMesh)count++;});return count;})(),
+        bones:(()=>{let count=0;gltf.scene.traverse(n=>{if(n.isBone)count++;});return count;})()
+      },
+      selectClip,setPlaying,
+      dispose(){
+        if(disposed)return;
+        disposed=true;
+        cancelAnimationFrame(raf);
+        resizeObserver.disconnect();
+        canvas.removeEventListener('webglcontextlost',lost);
+        controls.dispose();
+        mixer.stopAllAction();
+        mixer.uncacheRoot(gltf.scene);
+        disposeAsset(gltf.scene);
+        key.shadow.dispose();
+        renderer.dispose();
+        renderer.forceContextLoss();
+      }
+    };
+  }catch(error){
+    controls?.dispose();
+    resizeObserver?.disconnect();
+    disposeAsset(gltf.scene);
+    renderer?.dispose();
+    renderer?.forceContextLoss();
+    throw error;
+  }
+}

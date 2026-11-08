@@ -20,6 +20,7 @@ import {makeZip} from './zip.js';
 import {DEFAULT_LIGHTING,sanitizeLighting,sanitizeMaterial} from './lighting.js';
 import {render} from './renderer.js';
 import GpuPreview from './GpuPreview.jsx';
+import CharacterAssetLab from './CharacterAssetLab.jsx';
 import {makeBpcXrPacket} from './bpcExport.js';
 import {MAX_GLB_BYTES,prepareGlbImport} from './glbImport.js';
 import GlbImportDialog from './GlbImportDialog.jsx';
@@ -42,6 +43,7 @@ export default function App(){
   const [recovery,setRecovery]=useState(()=>{try{return readRecovery(window.localStorage);}catch{return null;}});
   const [starterOpen,setStarterOpen]=useState(false);
   const [guideOpen,setGuideOpen]=useState(false);
+  const [characterLabOpen,setCharacterLabOpen]=useState(false);
   const [vaultOpen,setVaultOpen]=useState(false);
   const [vaultRecords,setVaultRecords]=useState([]);
   const [vaultError,setVaultError]=useState('');
@@ -665,6 +667,8 @@ export default function App(){
       onProceed={()=>{const action=replacementWarning.action;
         setReplacementWarning(null);action();}}/>}
 
+    {characterLabOpen&&!recovery&&!replacementWarning&&<CharacterAssetLab onClose={()=>setCharacterLabOpen(false)}/>}
+
     {glbCandidate&&!recovery&&!replacementWarning&&<GlbImportDialog
       candidate={glbCandidate}
       onConfirm={confirmGlbImport}
@@ -685,6 +689,8 @@ export default function App(){
         <button className="ghost" onClick={newProject}>New</button>
         <button className="ghost" onClick={()=>setStarterOpen(true)}>Starter Scenes</button>
         <button className="ghost" onClick={()=>setGuideOpen(true)}>Quick Start</button>
+        <button className="ghost" onClick={()=>setCharacterLabOpen(true)}
+          title="Preview local textured, animated or rigged GLB without inserting into project">Character Lab</button>
         <button className="ghost" onClick={openSceneVault}>Scene Vault</button>
         <button className="ghost" onClick={()=>fileRef.current?.click()}>Open JSON</button>
         <button className="ghost" onClick={()=>glbFileRef.current?.click()}
