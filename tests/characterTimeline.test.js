@@ -24,7 +24,7 @@ test('scrub is deterministic at both supported frame rates',()=>{
 test('last frame clamps to true clip endpoint for fractional durations',()=>{
   assert.equal(durationFrameCount(1.01,24),25);
   assert.equal(frameToSeconds(25,1.01,24),1.01);
-  assert.equal(secondsToFrame(1.01,1.01,24),24);
+  assert.equal(secondsToFrame(1.01,1.01,24),25);
   assert.equal(clampCharacterFrame(999,1.01,24),25);
   assert.equal(clampCharacterFrame(-12,1,24),0);
 });
