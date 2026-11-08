@@ -1,5 +1,6 @@
 // An actual WebGL render check, not just a software fallback or DOM smoke test.
 import {test,expect} from '@playwright/test';
+import {mkdir,writeFile} from 'node:fs/promises';
 
 const url='http://127.0.0.1:4173/FramefieldStudio/';
 const preview=page=>page.getByTestId('gpu-preview-canvas');
@@ -21,11 +22,14 @@ test('GPU renders two distinct animation frames and restores editable software t
     expect(isWebGL).toBe(true);
     const first=await preview(page).screenshot();
     expect(first.length).toBeGreaterThan(2500);
+    await mkdir('gpu-evidence',{recursive:true});
+    await writeFile('gpu-evidence/frame-0000.png',first);
     await testInfo.attach('gpu-frame-0000',{body:first,contentType:'image/png'});
 
     await page.locator('.time-settings label').first().locator('input').fill('60');
     await expect(preview(page)).toHaveAttribute('data-rendered-frame','60');
     const second=await preview(page).screenshot();
+    await writeFile('gpu-evidence/frame-0060.png',second);
     await testInfo.attach('gpu-frame-0060',{body:second,contentType:'image/png'});
     expect(second.equals(first)).toBe(false); // real image output must follow the timeline
 
