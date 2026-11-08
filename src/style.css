@@ -258,3 +258,19 @@ footer{display:flex;justify-content:space-between;gap:18px;background:#101a2a;bo
 .character-lab-pose-row span{flex:1;min-width:150px;overflow-wrap:anywhere}
 .character-lab-pose-row button{font-size:11px}
 @media(max-width:600px){.character-expression-row{grid-template-columns:1fr 1fr 36px}}
+
+/* Phase 1F: manual facial keyframes and dialogue timing, local-only. */
+.character-lab-details[aria-label="Character acting timeline"]{
+  border-color:#6471a4;
+  background:linear-gradient(180deg,#19263e,#13243a)
+}
+.character-lab-details[aria-label="Character acting timeline"] .character-lab-pose-row{
+  padding:7px 0;
+  align-items:center
+}
+.character-lab-details[aria-label="Character acting timeline"] .character-lab-pose-editor>label{
+  color:#bdd6f3;font-size:11px;max-width:240px
+}
+.character-lab-details[aria-label="Character acting timeline"] input[type=text]{
+  min-width:160px;max-width:100%
+}
