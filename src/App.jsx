@@ -1,3 +1,4 @@
+import {createWebmHandoff} from './webmHandoff.js';
 import React, {useEffect,useMemo,useRef,useState} from 'react';
 import {atFrame,clamp,demoScene,id,makeObject,pose,putKey,TYPES,validateProject,setChannelCurve,setChannelKeyValue} from './scene.js';
 import GraphEditor from './GraphEditor.jsx';
@@ -525,9 +526,25 @@ export default function App(){
       const r=new MediaRecorder(stream,{mimeType:mime});
       recorder.current=r;
       r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-      r.onstop=()=>{
-        if(chunks.length)saveBlob(new Blob(chunks,{type:mime}),filename(scene.name)+'.webm');
-        stream.getTracks().forEach(t=>t.stop());setRecording(false);setStatus('WebM recording finished');
+      const projectAtCapture=scene;
+      const mediaName=filename(projectAtCapture.name)+'.webm';
+      r.onstop=async()=>{
+        try{
+          if(!chunks.length)throw Error('The recorder produced no video chunks.');
+          const webm=new Blob(chunks,{type:r.mimeType||mime});
+          const handoff=await createWebmHandoff(webm,{
+            fileName:mediaName,project:projectAtCapture,
+          });
+          // Two separate local downloads. Browsers may ask to allow multiple downloads.
+          saveBlob(webm,mediaName);
+          saveBlob(new Blob([JSON.stringify(handoff,null,2)],{type:'application/json'}),
+            mediaName+'.framefield-handoff.json');
+          setStatus('WebM and unsigned ParaCut handoff downloaded. Verify both bytes before editing.');
+        }catch(error){
+          setStatus('WebM handoff refused: '+error.message);
+        }finally{
+          stream.getTracks().forEach(t=>t.stop());setRecording(false);
+        }
       };
       r.onerror=()=>{setRecording(false);setStatus('Recording failed');};
       r.start();setFrame(0);setPlaying(true);setRecording(true);setStatus('Recording animation...');
