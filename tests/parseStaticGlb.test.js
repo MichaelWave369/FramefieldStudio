@@ -114,3 +114,36 @@ test('synthetic material-bound GLB passes Framefield save/load and animated BPC 
   assert.ok(Math.abs(packet.assets[0].keyframes[1].rotationRadians[1]-Math.PI/4)<1e-10);
   assert.equal(packet.permissions.publish,false);
 });
+
+test('rejects a negative accessor offset even when its absolute range fits the BIN', () => {
+  const input=glb([...triangle,2,2,2],null,{
+    bufferViews:[{buffer:0,byteOffset:12,byteLength:36}],
+    accessors:[{bufferView:0,byteOffset:-12,componentType:5126,count:3,type:'VEC3'}]
+  });
+  assert.throws(()=>parseStaticGlb(input),/accessor offset/);
+});
+test('cannot read GLB chunk padding beyond the declared glTF buffer', () => {
+  assert.throws(()=>parseStaticGlb(glb(triangle,null,{
+    buffers:[{byteLength:35}]
+  })),/out-of-bounds/);
+});
+test('rejects noninteger buffer lengths and accessor metadata', () => {
+  for(const byteLength of [-1,35.5]){
+    assert.throws(()=>parseStaticGlb(glb(triangle,null,{buffers:[{byteLength}]})),
+      /unsupported GLB document/);
+  }
+  for(const bufferView of [-1,0.5]){
+    assert.throws(()=>parseStaticGlb(glb(triangle,null,{
+      accessors:[{bufferView,componentType:5126,count:3,type:'VEC3'}]
+    })),/unsupported accessor/);
+  }
+});
+test('enforces declared accessor budgets before examining binary ranges', () => {
+  assert.throws(()=>parseStaticGlb(glb(triangle,null,{
+    accessors:[{bufferView:0,componentType:5126,count:801,type:'VEC3'}]
+  })),/vertex budget/);
+  assert.throws(()=>parseStaticGlb(glb(triangle,[0,1,2],{
+    accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3'},
+      {bufferView:1,componentType:5123,count:3601,type:'SCALAR'}]
+  })),/triangle budget/);
+});

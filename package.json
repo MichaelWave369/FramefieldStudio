@@ -11,6 +11,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test",
     "audit:dist": "node scripts/audit-dist.mjs",
+    "stage:phios": "node scripts/stage-phios-preview.mjs",
     "test:live": "playwright test -c playwright.live.config.js",
     "wait:live": "node scripts/wait-for-pages.mjs",
     "test:compat": "playwright test -c playwright.compat.config.js"

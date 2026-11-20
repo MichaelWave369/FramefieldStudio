@@ -10,18 +10,25 @@ function checkedRange(start, size, limit) {
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(size) || start < 0 || size < 0 || start + size > limit) fail('out-of-bounds data');
 }
 function accessor(json, binary, index, expectedType, expectedComponent) {
+  if (!Number.isSafeInteger(index) || index < 0) fail('unsupported accessor');
   const a = json.accessors?.[index];
   if (!a || a.type !== expectedType || a.componentType !== expectedComponent ||
-      !Number.isInteger(a.count) || a.count < 1 || a.sparse || a.normalized ||
-      !Number.isInteger(a.bufferView)) fail('unsupported accessor');
+      !Number.isSafeInteger(a.count) || a.count < 1 || a.sparse || a.normalized ||
+      !Number.isSafeInteger(a.bufferView) || a.bufferView < 0) fail('unsupported accessor');
+  // Bound allocation and iteration before decoding any untrusted binary data.
+  if (expectedType === 'VEC3' && a.count > MAX_VERTICES) fail('vertex budget exceeded');
+  if (expectedType === 'SCALAR' && a.count > MAX_FACES * 3) fail('triangle budget exceeded');
   const view = json.bufferViews?.[a.bufferView];
   if (!view || view.buffer !== 0 || view.byteStride !== undefined) fail('unsupported buffer view');
+  if (!Number.isSafeInteger(a.byteOffset ?? 0) || (a.byteOffset ?? 0) < 0)
+    fail('invalid accessor offset');
+  checkedRange(view.byteOffset ?? 0, view.byteLength, binary.byteLength);
   const bytes = COMPONENT_BYTES[a.componentType];
   const count = TYPE_SIZE[a.type];
   const start = (view.byteOffset ?? 0) + (a.byteOffset ?? 0);
   const size = a.count * count * bytes;
-  checkedRange(view.byteOffset ?? 0, view.byteLength, binary.byteLength);
-  checkedRange(start, size, (view.byteOffset ?? 0) + view.byteLength);
+  // Accessor offsets are relative to their own view, never to the whole BIN.
+  checkedRange(a.byteOffset ?? 0, size, view.byteLength);
   if (start % bytes !== 0) fail('misaligned accessor');
   const dv = new DataView(binary.buffer, binary.byteOffset + start, size);
   const out = [];
@@ -93,9 +100,14 @@ export function parseStaticGlb(buffer) {
     offset += length;
   }
   if (!json || !binary || json.asset?.version !== '2.0' ||
-      json.extensionsRequired?.length || json.buffers?.length !== 1 ||
-      json.buffers[0].uri !== undefined || json.buffers[0].byteLength > binary.byteLength)
+      json.extensionsRequired?.length || !Array.isArray(json.buffers) || json.buffers.length !== 1 ||
+      !json.buffers[0] || json.buffers[0].uri !== undefined ||
+      !Number.isSafeInteger(json.buffers[0].byteLength) || json.buffers[0].byteLength < 1 ||
+      json.buffers[0].byteLength > binary.byteLength ||
+      binary.byteLength - json.buffers[0].byteLength > 3)
     fail('unsupported GLB document');
+  // Up to three alignment bytes belong to the GLB chunk, not the glTF buffer.
+  binary = binary.subarray(0, json.buffers[0].byteLength);
   if (json.nodes !== undefined && !Array.isArray(json.nodes))
     fail('invalid nodes');
   if (json.nodes?.some(n => !n || typeof n !== 'object' ||
