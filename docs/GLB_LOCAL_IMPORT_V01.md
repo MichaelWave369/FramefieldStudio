@@ -32,6 +32,12 @@ not of subsequent geometry edits.
 - Sparse accessors, interleaved buffer views, missing/out-of-range indices, invalid geometry
 - Over-budget meshes and invalid or zero-area triangles
 
+Accessor offsets and counts must be nonnegative safe integers. Offsets are
+checked within their own buffer view; views are checked against the declared
+glTF buffer length. BIN chunk alignment padding is not geometry data. Declared
+vertex/index budgets are enforced before decoding, so malformed large counts
+do not allocate an oversized mesh before rejection.
+
 The current Canvas2D renderer is not a photorealistic or full glTF renderer. This is **not**
 verified compatibility with arbitrary PixelForge outputs, Fab assets, UE-exported material
 stacks, or Quest 3 performance. A test material color is **not** a claim that UVs,
